@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import {
   Search,
   Filter,
@@ -59,6 +59,7 @@ import { GitLabAPI } from "@/lib/gitlab-api"
 import type { GitLabIssue, GitLabProject } from "@/types/gitlab"
 import { kanbanConfig, getIssueColumn, getSortedColumns, type KanbanColumnConfig } from "@/config/kanban-config"
 import { useLanguage } from "@/contexts/language-context"
+import { useToast } from "@/hooks/use-toast"
 
 interface KanbanColumn {
   id: string
@@ -130,8 +131,12 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Optimistic updates state
+  const [pendingUpdates, setPendingUpdates] = useState<Set<number>>(new Set())
+
   const gitlabApi = useMemo(() => new GitLabAPI(gitlabToken, gitlabUrl), [gitlabToken, gitlabUrl])
   const { t } = useLanguage()
+  const { toast } = useToast()
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -292,22 +297,27 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     setActiveIssue(issue || null)
   }
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    setActiveIssue(null)
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event
+      setActiveIssue(null)
 
-    if (!over) return
+      if (!over) return
 
-    const issueId = Number.parseInt(active.id as string)
-    const newColumnId = over.id as string
+      const issueId = Number.parseInt(active.id as string)
+      const newColumnId = over.id as string
 
-    const issue = issues.find((i) => i.id === issueId)
-    if (!issue) return
+      const issue = issues.find((i) => i.id === issueId)
+      if (!issue) return
 
-    const newColumn = columns.find((col) => col.id === newColumnId)
-    if (!newColumn) return
+      const newColumn = columns.find((col) => col.id === newColumnId)
+      if (!newColumn) return
 
-    try {
+      // Get current column for rollback
+      const currentColumnId = getIssueColumn(issue, kanbanConfig)
+      if (currentColumnId === newColumnId) return // No change
+
+      // Prepare new labels
       const statusLabels = kanbanConfig.columns.flatMap((col) => col.labels)
       const updatedLabels = issue.labels.filter(
         (label) =>
@@ -322,19 +332,52 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         updatedLabels.push(newColumn.config.labels[0])
       }
 
-      await gitlabApi.updateIssue(projectId, issue.iid, {
-        labels: updatedLabels,
-      })
-
+      // Optimistic update
       setIssues((prev) => prev.map((i) => (i.id === issueId ? { ...i, labels: updatedLabels } : i)))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur lors de la mise à jour")
-    }
-  }
+      setPendingUpdates((prev) => new Set(prev).add(issueId))
 
-  const handleIssueClick = (issue: GitLabIssue) => {
-    setSelectedIssue(issue)
-  }
+      try {
+        // API call
+        await gitlabApi.updateIssue(projectId, issue.iid, {
+          labels: updatedLabels,
+        })
+
+        // Success - remove from pending
+        setPendingUpdates((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(issueId)
+          return newSet
+        })
+
+        toast({
+          title: "✅ Ticket déplacé",
+          description: `Le ticket #${issue.iid} a été déplacé vers "${newColumn.name}"`,
+          variant: "default",
+        })
+      } catch (err) {
+        // Error - rollback
+        setIssues((prev) => prev.map((i) => (i.id === issueId ? issue : i)))
+        setPendingUpdates((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(issueId)
+          return newSet
+        })
+
+        const errorMessage = err instanceof Error ? err.message : "Erreur inconnue"
+        toast({
+          title: "❌ Erreur",
+          description: `Impossible de déplacer le ticket #${issue.iid}: ${errorMessage}`,
+          variant: "destructive",
+        })
+      }
+    },
+    [issues, columns, gitlabApi, projectId, toast],
+  )
+
+  const handleIssueClick = useCallback((issue: GitLabIssue) => {
+    // Prevent double-click issues by using a callback
+    setSelectedIssue((prev) => (prev?.id === issue.id ? prev : issue))
+  }, [])
 
   const handleNewIssueClick = () => {
     setShowNewIssueModal(true)
@@ -372,8 +415,19 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
       // Close modal and reset form
       handleCloseNewIssueModal()
+
+      toast({
+        title: "✅ Issue créée",
+        description: `L'issue #${newIssue.iid} "${newIssue.title}" a été créée avec succès`,
+        variant: "default",
+      })
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur lors de la création de l'issue")
+      const errorMessage = err instanceof Error ? err.message : "Erreur lors de la création de l'issue"
+      toast({
+        title: "❌ Erreur",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setCreatingIssue(false)
     }
@@ -409,11 +463,14 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     }
 
     const displayLabels = getDisplayLabels(issue.labels)
+    const isPending = pendingUpdates.has(issue.id)
 
     return (
       <div ref={setNodeRef} style={style} {...attributes}>
         <Card
-          className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing"
+          className={`cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing ${
+            isPending ? "opacity-70 animate-pulse" : ""
+          }`}
           onClick={(e) => {
             // Ne pas ouvrir la modale si on clique sur le menu dropdown
             if (!(e.target as Element).closest("[data-dropdown-trigger]")) {
@@ -432,6 +489,11 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                   {issue.state === "closed" && (
                     <Badge variant="secondary" className="text-xs">
                       Fermé
+                    </Badge>
+                  )}
+                  {isPending && (
+                    <Badge variant="outline" className="text-xs">
+                      ⏳
                     </Badge>
                   )}
                 </div>
