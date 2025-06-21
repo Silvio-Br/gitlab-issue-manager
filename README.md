@@ -1,4 +1,4 @@
-# GitLab Kanban Manager
+# GitLab Issue Manager
 
 A modern, responsive Kanban board for GitLab projects built with Next.js, TypeScript, and Tailwind CSS. Manage your GitLab issues with an intuitive drag-and-drop interface, advanced filtering, and real-time synchronization.
 
