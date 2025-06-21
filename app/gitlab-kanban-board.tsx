@@ -16,6 +16,7 @@ import {
   Clock,
   Loader2,
   ChevronDown,
+  ChevronRight,
 } from "lucide-react"
 import {
   DndContext,
@@ -53,6 +54,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 
 import { GitLabAPI } from "@/lib/gitlab-api"
@@ -191,29 +193,6 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       loadProjectData()
     }
   }, [projectId, gitlabApi])
-
-  // Load comments when issue is selected
-  useEffect(() => {
-    const loadComments = async () => {
-      if (!selectedIssue) {
-        setIssueComments([])
-        return
-      }
-
-      try {
-        setLoadingComments(true)
-        const comments = await gitlabApi.getIssueComments(projectId, selectedIssue.iid)
-        setIssueComments(comments.filter((comment) => !comment.system)) // Filtrer les commentaires système
-      } catch (err) {
-        console.error("Erreur lors du chargement des commentaires:", err)
-        setIssueComments([])
-      } finally {
-        setLoadingComments(false)
-      }
-    }
-
-    loadComments()
-  }, [selectedIssue, projectId, gitlabApi])
 
   // Filter issues based on search and filters
   const filteredIssues = useMemo(() => {
@@ -621,6 +600,103 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     )
   }
 
+  // Composant pour les commentaires avec chargement à la demande
+  function CollapsibleComments({ issue }: { issue: GitLabIssue }) {
+    const [isOpen, setIsOpen] = useState(false)
+    const [comments, setComments] = useState<GitLabComment[]>([])
+    const [loading, setLoading] = useState(false)
+    const [hasLoaded, setHasLoaded] = useState(false)
+
+    const loadComments = async () => {
+      if (hasLoaded) return
+
+      try {
+        setLoading(true)
+        const commentsData = await gitlabApi.getIssueComments(projectId, issue.iid)
+        setComments(commentsData.filter((comment) => !comment.system))
+        setHasLoaded(true)
+      } catch (err) {
+        console.error("Erreur lors du chargement des commentaires:", err)
+        setComments([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    const handleToggle = () => {
+      if (!isOpen && !hasLoaded) {
+        loadComments()
+      }
+      setIsOpen(!isOpen)
+    }
+
+    return (
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger asChild>
+          <Button
+            variant="ghost"
+            className="w-full justify-between p-0 h-auto font-medium text-sm"
+            onClick={handleToggle}
+          >
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" />
+              {t.comments} ({issue.user_notes_count || 0})
+            </div>
+            <div className="flex items-center gap-1">
+              {loading && <Loader2 className="w-3 h-3 animate-spin" />}
+              <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+            </div>
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 mt-4">
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="border rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Skeleton className="w-6 h-6 rounded-full" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                  <Skeleton className="h-4 w-full mb-2" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              ))}
+            </div>
+          ) : comments.length > 0 ? (
+            <div className="space-y-4">
+              {comments.map((comment) => (
+                <div key={comment.id} className="border rounded-lg p-4 animate-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Avatar className="w-6 h-6">
+                      <AvatarImage src={comment.author.avatar_url || "/placeholder.svg"} alt={comment.author.name} />
+                      <AvatarFallback className="text-xs">
+                        {comment.author.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .substring(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium">{comment.author.name}</span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(comment.created_at).toLocaleDateString("fr-FR")}
+                    </span>
+                  </div>
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown>{comment.body}</ReactMarkdown>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 py-4">{t.noComments}</p>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+    )
+  }
+
   function IssueModal() {
     if (!selectedIssue) return null
 
@@ -723,45 +799,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
               <Separator />
 
               {/* Comments */}
-              <div>
-                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4" />
-                  {t.comments} ({issueComments.length})
-                </h4>
-
-                {issueComments.length > 0 ? (
-                  <div className="space-y-4">
-                    {issueComments.map((comment) => (
-                      <div key={comment.id} className="border rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarImage
-                              src={comment.author.avatar_url || "/placeholder.svg"}
-                              alt={comment.author.name}
-                            />
-                            <AvatarFallback className="text-xs">
-                              {comment.author.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .substring(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm font-medium">{comment.author.name}</span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(comment.created_at).toLocaleDateString("fr-FR")}
-                          </span>
-                        </div>
-                        <div className="prose prose-sm max-w-none">
-                          <ReactMarkdown>{comment.body}</ReactMarkdown>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">{t.noComments}</p>
-                )}
-              </div>
+              <CollapsibleComments issue={selectedIssue} />
 
               {/* Actions */}
               <div className="flex gap-2 pt-4">
