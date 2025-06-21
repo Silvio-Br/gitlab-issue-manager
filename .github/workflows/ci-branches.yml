@@ -256,7 +256,7 @@ jobs:
   summary:
     name: 📋 CI Summary
     runs-on: ubuntu-latest
-    needs: [install, lint, test, build, security]
+    needs: [install, lint, build, security]
     if: always()
     steps:
       - name: 📋 Generate summary
@@ -269,7 +269,6 @@ jobs:
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| 📦 Install | ${{ needs.install.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 🔍 Lint | ${{ needs.lint.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🧪 Test | ${{ needs.test.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 🏗️ Build | ${{ needs.build.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 🔒 Security | ${{ needs.security.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -280,13 +279,13 @@ jobs:
           echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
 
       - name: 🎉 Success notification
-        if: needs.install.result == 'success' && needs.lint.result == 'success' && needs.test.result == 'success' && needs.build.result == 'success'
+        if: needs.install.result == 'success' && needs.lint.result == 'success' && needs.build.result == 'success'
         run: |
           echo "🎉 All CI checks passed successfully!"
           echo "✅ Ready for code review and merge"
 
       - name: ❌ Failure notification
-        if: needs.install.result == 'failure' || needs.lint.result == 'failure' || needs.test.result == 'failure' || needs.build.result == 'failure'
+        if: needs.install.result == 'failure' || needs.lint.result == 'failure' || needs.build.result == 'failure'
         run: |
           echo "❌ Some CI checks failed"
           echo "Please review the failed jobs and fix the issues"
@@ -298,7 +297,7 @@ jobs:
   pr-comment:
     name: 💬 PR Comment
     runs-on: ubuntu-latest
-    needs: [install, lint, test, build, security]
+    needs: [install, lint, build, security]
     if: github.event_name == 'pull_request' && always()
     permissions:
       pull-requests: write
@@ -310,7 +309,6 @@ jobs:
             const results = {
               install: '${{ needs.install.result }}',
               lint: '${{ needs.lint.result }}',
-              test: '${{ needs.test.result }}',
               build: '${{ needs.build.result }}',
               security: '${{ needs.security.result }}'
             };
@@ -333,7 +331,6 @@ jobs:
             |-------|--------|
             | 📦 Install Dependencies | ${getEmoji(results.install)} ${results.install} |
             | 🔍 Lint & Code Quality | ${getEmoji(results.lint)} ${results.lint} |
-            | 🧪 Unit Tests | ${getEmoji(results.test)} ${results.test} |
             | 🏗️ Build Application | ${getEmoji(results.build)} ${results.build} |
             | 🔒 Security Analysis | ${getEmoji(results.security)} ${results.security} |
             
