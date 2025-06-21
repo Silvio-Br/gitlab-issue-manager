@@ -122,7 +122,6 @@ class DatabaseManager {
     const store = await this.getStore("projects", "readwrite")
 
     return new Promise((resolve, reject) => {
-      const transaction = store.transaction
       let completed = 0
       let hasError = false
 
