@@ -121,29 +121,19 @@ class DatabaseManager {
   async saveProjects(projects: StoredProject[]): Promise<void> {
     const store = await this.getStore("projects", "readwrite")
 
-    return new Promise((resolve, reject) => {
-      let completed = 0
-      let hasError = false
+    if (projects.length === 0) {
+      return Promise.resolve()
+    }
 
-      if (projects.length === 0) {
-        resolve()
-        return
-      }
-
-      projects.forEach((project) => {
+    const promises = projects.map((project) => {
+      return new Promise<void>((resolve, reject) => {
         const request = store.put(project)
-        request.onsuccess = () => {
-          completed++
-          if (completed === projects.length && !hasError) {
-            resolve()
-          }
-        }
-        request.onerror = () => {
-          hasError = true
-          reject(request.error)
-        }
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
       })
     })
+
+    return Promise.all(promises).then(() => undefined)
   }
 
   async getSelectedProjects(): Promise<StoredProject[]> {
