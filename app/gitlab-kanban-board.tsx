@@ -1074,8 +1074,8 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">{project?.name || "Tableau Kanban"}</h1>
-                <p className="text-gray-600 mt-1">{project?.description || "Gérez vos issues GitLab efficacement"}</p>
+                <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
+                <p className="text-gray-600 mt-1">{project?.description}</p>
               </div>
               <Button onClick={handleNewIssueClick}>
                 <Plus className="w-4 h-4 mr-2" />
