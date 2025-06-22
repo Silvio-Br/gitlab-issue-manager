@@ -6,6 +6,7 @@ export interface GitLabIssue {
   state: "opened" | "closed"
   created_at: string
   updated_at: string
+  user_notes_count: number;
   due_date: string | null
   labels: string[]
   assignees: GitLabUser[]

@@ -20,7 +20,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { t } = useLanguage()
   const { config: gitlabConfig, loading: configLoading } = useGitLabConfig()
-  const { selectedProjects, loading: projectsLoading, updateProjectSelection, removeProject } = useProjects()
+  const { selectedProjects, loading: projectsLoading, removeProject } = useProjects()
 
   useEffect(() => {
     // Redirect to configuration if no GitLab config

@@ -117,8 +117,6 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
   // Modal state
   const [selectedIssue, setSelectedIssue] = useState<GitLabIssue | null>(null)
-  const [issueComments, setIssueComments] = useState<GitLabComment[]>([])
-  const [loadingComments, setLoadingComments] = useState(false)
 
   // New issue modal state
   const [showNewIssueModal, setShowNewIssueModal] = useState(false)
@@ -170,6 +168,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         ])
 
         setProject(projectData)
+        // @ts-ignore
         setIssues(issuesData)
 
         const configColumns = getSortedColumns(kanbanConfig).map((columnConfig) => ({
@@ -390,6 +389,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       })
 
       // Add the new issue to the list
+      // @ts-ignore
       setIssues((prev) => [newIssue, ...prev])
 
       // Close modal and reset form
@@ -911,7 +911,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                           return (
                             <SelectItem key={label} value={labelsValue(next)}>
                               <div className="flex items-center gap-2">
-                                <Checkbox checked={newIssueForm.labels.includes(label)} readOnly />
+                                <Checkbox checked={newIssueForm.labels.includes(label)} />
                                 {label}
                               </div>
                             </SelectItem>
@@ -950,7 +950,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                                       <AvatarFallback className="text-xs">
                                         {assignee.name
                                           .split(" ")
-                                          .map((n) => n[0])
+                                          .map((n: any[]) => n[0])
                                           .join("")
                                           .substring(0, 2)}
                                       </AvatarFallback>
@@ -974,7 +974,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                                 <AvatarFallback className="text-xs">
                                   {assignee.name
                                     .split(" ")
-                                    .map((n) => n[0])
+                                    .map((n: any[]) => n[0])
                                     .join("")
                                     .substring(0, 2)}
                                 </AvatarFallback>

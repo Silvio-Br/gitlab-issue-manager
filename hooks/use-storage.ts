@@ -130,6 +130,7 @@ export function useSettings() {
     const loadSettings = async () => {
       try {
         const settings = await storageService.getKanbanSettings()
+        // @ts-ignore
         setKanbanSettings(settings)
       } catch (error) {
         console.error("Failed to load settings:", error)
