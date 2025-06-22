@@ -44,7 +44,7 @@ interface IssueModalProps {
   availableColumns: KanbanColumnConfig[]
   isSubmitting: boolean
   mode: "create" | "edit"
-  issue?: GitLabIssue
+  issue?: GitLabIssue | null
 }
 
 export function IssueModal({
