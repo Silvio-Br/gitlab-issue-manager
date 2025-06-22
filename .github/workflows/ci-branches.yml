@@ -137,16 +137,6 @@ jobs:
           echo "Static files:"
           find .next/static -name "*.js" -o -name "*.css" | wc -l || echo "No static files found"
 
-      - name: 📤 Upload build artifacts
-        if: matrix.build-env == 'production'
-        uses: actions/upload-artifact@v3
-        with:
-          name: build-artifacts-${{ github.sha }}
-          path: |
-            .next/
-            public/
-          retention-days: 7
-
   # =============================================================================
   # Job 3: Analyse de sécurité
   # =============================================================================
