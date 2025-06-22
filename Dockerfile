@@ -19,8 +19,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build arguments
-ARG BUILD_ENV=production
-ENV NODE_ENV=${BUILD_ENV}
+# ARG BUILD_ENV=production
+# ENV NODE_ENV=${BUILD_ENV}
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build the application
@@ -40,7 +40,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Set environment
-ENV NODE_ENV=production
+# ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
