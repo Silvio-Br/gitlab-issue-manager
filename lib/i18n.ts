@@ -13,6 +13,7 @@ export interface Translations {
   filter: string
   clear: string
   loadMore: string
+  remaining: string
 
   // Navigation
   dashboard: string
@@ -53,9 +54,12 @@ export interface Translations {
   comments: string
   noComments: string
   viewInGitlab: string
+  unassigned: string
 
-  // Issue creation
+  // Issue creation/editing
   createIssue: string
+  editIssue: string
+  updateIssue: string
   issueTitle_: string
   issueDescription_: string
   selectLabels: string
@@ -63,10 +67,14 @@ export interface Translations {
   noLabels: string
   noAssignee: string
   creating: string
+  updating: string
   startDate: string
   dueDate: string
   selectStartDate: string
   selectDueDate: string
+  status: string
+  selectStatus: string
+  allLabelsSelected: string
 
   // Placeholders
   issueTitlePlaceholder: string
@@ -140,11 +148,6 @@ export interface Translations {
   dueInDays: string
   day: string
   days: string
-
-  // Issue editing
-  editIssue: string
-  updateIssue: string
-  updating: string
 }
 
 export const translations: Record<Language, Translations> = {
@@ -161,6 +164,7 @@ export const translations: Record<Language, Translations> = {
     filter: "Filter",
     clear: "Clear",
     loadMore: "Load More",
+    remaining: "remaining",
 
     // Navigation
     dashboard: "Dashboard",
@@ -201,9 +205,12 @@ export const translations: Record<Language, Translations> = {
     comments: "Comments",
     noComments: "No comments",
     viewInGitlab: "View in GitLab",
+    unassigned: "Unassigned",
 
-    // Issue creation
+    // Issue creation/editing
     createIssue: "Create Issue",
+    editIssue: "Edit Issue",
+    updateIssue: "Update Issue",
     issueTitle_: "Title *",
     issueDescription_: "Description",
     selectLabels: "Select labels...",
@@ -211,10 +218,14 @@ export const translations: Record<Language, Translations> = {
     noLabels: "No labels",
     noAssignee: "No assignee",
     creating: "Creating...",
+    updating: "Updating...",
     startDate: "Start Date",
     dueDate: "Due Date",
     selectStartDate: "Select start date...",
     selectDueDate: "Select due date...",
+    status: "Status",
+    selectStatus: "Select status...",
+    allLabelsSelected: "All labels are selected",
 
     // Placeholders
     issueTitlePlaceholder: "Issue title...",
@@ -288,11 +299,6 @@ export const translations: Record<Language, Translations> = {
     dueInDays: "in",
     day: "day",
     days: "days",
-
-    // Issue editing
-    editIssue: "Edit Issue",
-    updateIssue: "Update Issue",
-    updating: "Updating...",
   },
   fr: {
     // Common
@@ -307,6 +313,7 @@ export const translations: Record<Language, Translations> = {
     filter: "Filtrer",
     clear: "Effacer",
     loadMore: "Charger plus",
+    remaining: "restants",
 
     // Navigation
     dashboard: "Tableau de bord",
@@ -347,9 +354,12 @@ export const translations: Record<Language, Translations> = {
     comments: "Commentaires",
     noComments: "Aucun commentaire",
     viewInGitlab: "Voir dans GitLab",
+    unassigned: "Non assigné",
 
-    // Issue creation
+    // Issue creation/editing
     createIssue: "Créer l'issue",
+    editIssue: "Modifier l'issue",
+    updateIssue: "Mettre à jour",
     issueTitle_: "Titre *",
     issueDescription_: "Description",
     selectLabels: "Sélectionner des labels...",
@@ -357,10 +367,14 @@ export const translations: Record<Language, Translations> = {
     noLabels: "Aucun label",
     noAssignee: "Aucun assigné",
     creating: "Création...",
+    updating: "Mise à jour...",
     startDate: "Date de début",
     dueDate: "Date d'échéance",
     selectStartDate: "Sélectionner la date de début...",
     selectDueDate: "Sélectionner la date d'échéance...",
+    status: "Statut",
+    selectStatus: "Sélectionner un statut...",
+    allLabelsSelected: "Tous les labels sont sélectionnés",
 
     // Placeholders
     issueTitlePlaceholder: "Titre de l'issue...",
@@ -434,10 +448,5 @@ export const translations: Record<Language, Translations> = {
     dueInDays: "dans",
     day: "jour",
     days: "jours",
-
-    // Issue editing
-    editIssue: "Modifier l'issue",
-    updateIssue: "Mettre à jour",
-    updating: "Mise à jour...",
   },
 }

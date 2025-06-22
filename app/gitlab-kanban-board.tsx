@@ -3,171 +3,38 @@
 import type React from "react"
 
 import { useState, useMemo, useEffect, useCallback } from "react"
-import {
-  Plus,
-  MoreHorizontal,
-  Calendar,
-  ExternalLink,
-  MessageSquare,
-  User,
-  Clock,
-  Loader2,
-  ChevronDown,
-  ChevronRight,
-  X,
-  Trash2,
-  PlayCircle,
-  Flag,
-  Edit,
-} from "lucide-react"
-import { Search, Filter, AlertCircle } from "lucide-react"
-import { DndContext, closestCorners } from "@dnd-kit/core"
-import {
-  type DragEndEvent,
-  type DragStartEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  useDroppable,
-} from "@dnd-kit/core"
-import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import ReactMarkdown from "react-markdown"
+import { Plus, Search, Filter, AlertCircle } from "lucide-react"
+import { DndContext, closestCorners, DragOverlay } from "@dnd-kit/core"
+import { type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { format } from "date-fns"
-import { fr, enUS } from "date-fns/locale"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuItem,
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { AlertDialog, AlertDialogContent } from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import {
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 import { GitLabAPI } from "@/lib/gitlab-api"
 import type { GitLabIssue, GitLabProject } from "@/types/gitlab"
-import { kanbanConfig, getIssueColumn, getSortedColumns, type KanbanColumnConfig } from "@/config/kanban-config"
+import { kanbanConfig, getIssueColumn, getSortedColumns } from "@/config/kanban-config"
 import { useLanguage } from "@/contexts/language-context"
 import { useToast } from "@/hooks/use-toast"
 
-// Utility function to get due date color based on urgency
-const getDueDateColor = (dueDate: string) => {
-  const today = new Date()
-  const due = new Date(dueDate)
-  const diffTime = due.getTime() - today.getTime()
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-  if (diffDays < 0) {
-    // Overdue - Red
-    return {
-      textColor: "text-red-600",
-      bgColor: "bg-red-50",
-      borderColor: "border-red-200",
-      icon: "text-red-500",
-    }
-  } else if (diffDays <= 1) {
-    // Due today or tomorrow - Orange
-    return {
-      textColor: "text-orange-600",
-      bgColor: "bg-orange-50",
-      borderColor: "border-orange-200",
-      icon: "text-orange-500",
-    }
-  } else if (diffDays <= 3) {
-    // Due in 2-3 days - Amber
-    return {
-      textColor: "text-amber-600",
-      bgColor: "bg-amber-50",
-      borderColor: "border-amber-200",
-      icon: "text-amber-500",
-    }
-  } else if (diffDays <= 7) {
-    // Due in a week - Yellow
-    return {
-      textColor: "text-yellow-600",
-      bgColor: "bg-yellow-50",
-      borderColor: "border-yellow-200",
-      icon: "text-yellow-500",
-    }
-  } else {
-    // Not urgent - Green/Normal
-    return {
-      textColor: "text-green-600",
-      bgColor: "bg-green-50",
-      borderColor: "border-green-200",
-      icon: "text-green-500",
-    }
-  }
-}
-
-// Utility function to get due date label with i18n
-const getDueDateLabel = (dueDate: string, t: any) => {
-  const today = new Date()
-  const due = new Date(dueDate)
-  const diffTime = due.getTime() - today.getTime()
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-  if (diffDays < 0) {
-    const overdueDays = Math.abs(diffDays)
-    return `${t.overdueDays} ${overdueDays} ${overdueDays > 1 ? t.days : t.day}`
-  } else if (diffDays === 0) {
-    return t.dueToday
-  } else if (diffDays === 1) {
-    return t.dueTomorrow
-  } else {
-    return `${t.dueInDays} ${diffDays} ${diffDays > 1 ? t.days : t.day}`
-  }
-}
-
-interface KanbanColumn {
-  id: string
-  name: string
-  emoji?: string
-  color: string
-  issues: GitLabIssue[]
-  config: KanbanColumnConfig
-}
-
-interface GitLabComment {
-  id: number
-  body: string
-  author: {
-    id: number
-    name: string
-    username: string
-    avatar_url: string
-  }
-  created_at: string
-  updated_at: string
-  system: boolean
-}
+// Import refactored components
+import { KanbanColumn } from "@/components/kanban/kanban-column"
+import { IssueModal } from "@/components/kanban/issue-modal"
+import { IssueDetailModal } from "@/components/kanban/issue-detail-modal"
+import { DeleteIssueDialog } from "@/components/kanban/delete-issue-dialog"
 
 interface GitLabKanbanBoardProps {
   projectId: string
@@ -178,414 +45,27 @@ interface GitLabKanbanBoardProps {
 interface IssueForm {
   title: string
   description: string
-  status: string // ID de la colonne
-  labels: string[] // Labels non-statut
+  status: string
+  labels: string[]
   assignee_id: number | null
   start_date: Date | null
   due_date: Date | null
 }
 
+interface KanbanColumnData {
+  id: string
+  name: string
+  emoji?: string
+  color: string
+  issues: GitLabIssue[]
+  totalIssues: number
+  hasMore: boolean
+}
+
 const TICKETS_PER_COLUMN = 10
 
-// Ajouter cette interface avant le composant principal
-interface IssueModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSubmit: (e: React.FormEvent) => Promise<void>
-  form: IssueForm
-  setForm: React.Dispatch<React.SetStateAction<IssueForm>>
-  allAssigneesWithIds: any[]
-  allNonStatusLabels: string[]
-  availableColumns: KanbanColumnConfig[]
-  isSubmitting: boolean
-  t: any
-  language: string
-  mode: "create" | "edit"
-  issue?: GitLabIssue
-}
-
-// Définir IssueModal comme composant séparé avant GitLabKanbanBoard
-function IssueModal({
-                      isOpen,
-                      onClose,
-                      onSubmit,
-                      form,
-                      setForm,
-                      allAssigneesWithIds,
-                      allNonStatusLabels,
-                      availableColumns,
-                      isSubmitting,
-                      t,
-                      language,
-                      mode,
-                      issue,
-                    }: IssueModalProps) {
-  const [customLabelInput, setCustomLabelInput] = useState("")
-  const [showCustomLabelInput, setShowCustomLabelInput] = useState(false)
-
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSubmit(e)
-  }
-
-  const title = mode === "create" ? t.newIssue : t.editIssue
-  const submitText = mode === "create" ? t.createIssue : t.updateIssue
-  const submittingText = mode === "create" ? t.creating : t.updating
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            {mode === "create" ? <Plus className="w-5 h-5" /> : <Edit className="w-5 h-5" />}
-            {title}
-            {mode === "edit" && issue && (
-              <Badge variant="outline" className="font-mono ml-2">
-                #{issue.iid}
-              </Badge>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-
-        <ScrollArea className="flex-1 overflow-y-auto">
-          <div className="px-1">
-            <div className="space-y-6 pr-3 pb-4">
-              {/* Title */}
-              <div className="space-y-2">
-                <Label htmlFor="title">{t.issueTitle_}</Label>
-                <Input
-                  id="title"
-                  value={form.title}
-                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder={t.issueTitlePlaceholder}
-                  required
-                />
-              </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="description">{t.issueDescription_}</Label>
-                <Textarea
-                  id="description"
-                  value={form.description}
-                  onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                  placeholder={t.issueDescriptionPlaceholder}
-                  rows={6}
-                />
-              </div>
-
-              {/* Status (Column) */}
-              <div className="space-y-2">
-                <Label>Statut</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(value) => {
-                    setForm((prev) => ({ ...prev, status: value }))
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un statut">
-                      {form.status
-                        ? (() => {
-                          const column = availableColumns.find((col) => col.id === form.status)
-                          return column ? (
-                            <div className="flex items-center gap-2">
-                              {column.emoji && <span>{column.emoji}</span>}
-                              <span>{column.name}</span>
-                            </div>
-                          ) : (
-                            "Sélectionner un statut"
-                          )
-                        })()
-                        : "Sélectionner un statut"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableColumns.map((column) => (
-                      <SelectItem key={column.id} value={column.id}>
-                        <div className="flex items-center gap-2">
-                          {column.emoji && <span>{column.emoji}</span>}
-                          <span>{column.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Dates */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Start Date */}
-                <div className="space-y-2">
-                  <Label>{t.startDate}</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button type="button" variant="outline" className="w-full justify-start text-left font-normal">
-                        <PlayCircle className="mr-2 h-4 w-4" />
-                        {form.start_date ? (
-                          format(form.start_date, "PPP", { locale: language === "fr" ? fr : enUS })
-                        ) : (
-                          <span className="text-muted-foreground">{t.selectStartDate}</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={form.start_date || undefined}
-                        onSelect={(date) => setForm((prev) => ({ ...prev, start_date: date || null }))}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Due Date */}
-                <div className="space-y-2">
-                  <Label>{t.dueDate}</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button type="button" variant="outline" className="w-full justify-start text-left font-normal">
-                        <Flag className="mr-2 h-4 w-4" />
-                        {form.due_date ? (
-                          format(form.due_date, "PPP", { locale: language === "fr" ? fr : enUS })
-                        ) : (
-                          <span className="text-muted-foreground">{t.selectDueDate}</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={form.due_date || undefined}
-                        onSelect={(date) => setForm((prev) => ({ ...prev, due_date: date || null }))}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-
-              {/* Other Labels */}
-              {(allNonStatusLabels.length > 0 || showCustomLabelInput) && (
-                <div className="space-y-2">
-                  <Label>Labels</Label>
-
-                  {/* Selected labels */}
-                  {form.labels.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {form.labels.map((label) => (
-                        <Badge key={label} variant="secondary" className="text-xs flex items-center gap-1">
-                          {label}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto p-0 w-4 h-4 hover:bg-transparent"
-                            onClick={() => {
-                              setForm((prev) => ({
-                                ...prev,
-                                labels: prev.labels.filter((l) => l !== label),
-                              }))
-                            }}
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Custom label input */}
-                  {showCustomLabelInput && (
-                    <div className="flex gap-2 mb-2 items-center">
-                      <Input
-                        placeholder={t.newLabelPlaceholder}
-                        value={customLabelInput}
-                        onChange={(e) => setCustomLabelInput(e.target.value)}
-                        className="flex-1"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault()
-                            if (customLabelInput.trim() && !form.labels.includes(customLabelInput.trim())) {
-                              setForm((prev) => ({
-                                ...prev,
-                                labels: [...prev.labels, customLabelInput.trim()],
-                              }))
-                              setCustomLabelInput("")
-                              setShowCustomLabelInput(false)
-                            }
-                          }
-                          if (e.key === "Escape") {
-                            setCustomLabelInput("")
-                            setShowCustomLabelInput(false)
-                          }
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => {
-                          if (customLabelInput.trim() && !form.labels.includes(customLabelInput.trim())) {
-                            setForm((prev) => ({
-                              ...prev,
-                              labels: [...prev.labels, customLabelInput.trim()],
-                            }))
-                            setCustomLabelInput("")
-                            setShowCustomLabelInput(false)
-                          }
-                        }}
-                      >
-                        {t.save}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setCustomLabelInput("")
-                          setShowCustomLabelInput(false)
-                        }}
-                      >
-                        {t.cancel}
-                      </Button>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 items-center">
-                    <Select
-                      value=""
-                      onValueChange={(value) => {
-                        if (value && !form.labels.includes(value)) {
-                          setForm((prev) => ({
-                            ...prev,
-                            labels: [...prev.labels, value],
-                          }))
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder={t.addLabel} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allNonStatusLabels
-                          .filter((label) => !form.labels.includes(label))
-                          .map((label) => (
-                            <SelectItem key={label} value={label}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                        {allNonStatusLabels.filter((label) => !form.labels.includes(label)).length === 0 && (
-                          <div className="px-3 py-2 text-gray-500 text-sm">Tous les labels sont sélectionnés</div>
-                        )}
-                      </SelectContent>
-                    </Select>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowCustomLabelInput(true)}
-                      className="whitespace-nowrap flex-shrink-0"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      {t.createNewLabel}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Assignee */}
-              {allAssigneesWithIds.length > 0 && (
-                <div className="space-y-2">
-                  <Label>{t.assignedTo_}</Label>
-                  <Select
-                    value={form.assignee_id?.toString() || "none"}
-                    onValueChange={(value) => {
-                      setForm((prev) => ({
-                        ...prev,
-                        assignee_id: value === "none" ? null : Number.parseInt(value),
-                      }))
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t.selectAssignee}>
-                        {form.assignee_id
-                          ? (() => {
-                            const assignee = allAssigneesWithIds.find((a) => a.id === form.assignee_id)
-                            return assignee ? (
-                              <div className="flex items-center gap-2">
-                                <Avatar className="w-6 h-6">
-                                  <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
-                                  <AvatarFallback className="text-xs">
-                                    {assignee.name
-                                      .split(" ")
-                                      .map((n: any[]) => n[0])
-                                      .join("")
-                                      .substring(0, 2)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span>{assignee.name}</span>
-                              </div>
-                            ) : (
-                              t.selectAssignee
-                            )
-                          })()
-                          : t.selectAssignee}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">{t.noAssignee}</SelectItem>
-                      {allAssigneesWithIds.map((assignee) => (
-                        <SelectItem key={assignee.id} value={assignee.id.toString()}>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="w-6 h-6">
-                              <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
-                              <AvatarFallback className="text-xs">
-                                {assignee.name
-                                  .split(" ")
-                                  .map((n: any[]) => n[0])
-                                  .join("")
-                                  .substring(0, 2)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span>{assignee.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          </div>
-        </ScrollArea>
-
-        {/* Actions en bas, toujours visibles */}
-        <div className="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
-          <Button type="button" variant="outline" onClick={onClose}>
-            {t.cancel}
-          </Button>
-          <Button type="button" disabled={!form.title.trim() || isSubmitting} onClick={handleFormSubmit}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {submittingText}
-              </>
-            ) : (
-              <>
-                {mode === "create" ? <Plus className="w-4 h-4 mr-2" /> : <Edit className="w-4 h-4 mr-2" />}
-                {submitText}
-              </>
-            )}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }: GitLabKanbanBoardProps) {
+  // State management
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedAssignee, setSelectedAssignee] = useState<string>("all")
@@ -593,13 +73,13 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
   const [issues, setIssues] = useState<GitLabIssue[]>([])
   const [project, setProject] = useState<GitLabProject | null>(null)
-  const [columns, setColumns] = useState<KanbanColumn[]>([])
+  const [columns, setColumns] = useState<Array<{ id: string; name: string; emoji?: string; color: string }>>([])
   const [activeIssue, setActiveIssue] = useState<GitLabIssue | null>(null)
 
   // Pagination state for each column
   const [columnLimits, setColumnLimits] = useState<Record<string, number>>({})
 
-  // Modal state
+  // Modal states
   const [selectedIssue, setSelectedIssue] = useState<GitLabIssue | null>(null)
   const [editingIssue, setEditingIssue] = useState<GitLabIssue | null>(null)
 
@@ -609,15 +89,13 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   const [issueForm, setIssueForm] = useState<IssueForm>({
     title: "",
     description: "",
-    status: "open", // Statut par défaut
+    status: "open",
     labels: [],
     assignee_id: null,
     start_date: null,
     due_date: null,
   })
   const [submittingIssue, setSubmittingIssue] = useState(false)
-  const [customLabelInput, setCustomLabelInput] = useState("")
-  const [showCustomLabelInput, setShowCustomLabelInput] = useState(false)
 
   // Delete confirmation state
   const [issueToDelete, setIssueToDelete] = useState<GitLabIssue | null>(null)
@@ -641,20 +119,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     }),
   )
 
-  // Function to transform relative GitLab URLs to absolute URLs
-  const transformGitLabUrls = useCallback(
-    (content: string) => {
-      if (!gitlabUrl || !projectId) return content
-
-      // Transform /uploads/ URLs to absolute URLs
-      return content
-        .replace(/href="(\/uploads\/[^"]+)"/g, `href="${gitlabUrl}/-/project/${projectId}$1"`)
-        .replace(/src="(\/uploads\/[^"]+)"/g, `src="${gitlabUrl}/-/project/${projectId}$1"`)
-    },
-    [gitlabUrl, projectId],
-  )
-
-  // Custom link component for ReactMarkdown
+  // Custom link and image components for ReactMarkdown
   const CustomLink = useCallback(
     ({ href, children, ...props }: any) => {
       let finalHref = href
@@ -679,7 +144,6 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     [gitlabUrl, projectId],
   )
 
-  // Custom image component for ReactMarkdown
   const CustomImage = useCallback(
     ({ src, alt, ...props }: any) => {
       let finalSrc = src
@@ -723,7 +187,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         ])
 
         setProject(projectData)
-        // @ts-expect-error
+        // @ts-expect-error - API response type mismatch
         setIssues(issuesData)
 
         const configColumns = getSortedColumns(kanbanConfig).map((columnConfig) => ({
@@ -731,13 +195,11 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           name: columnConfig.name,
           emoji: columnConfig.emoji,
           color: columnConfig.color,
-          issues: [],
-          config: columnConfig,
         }))
 
         setColumns(configColumns)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Erreur lors du chargement des données")
+        setError(err instanceof Error ? err.message : t.error)
       } finally {
         setLoading(false)
       }
@@ -746,7 +208,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     if (projectId) {
       loadProjectData()
     }
-  }, [projectId, gitlabApi])
+  }, [projectId, gitlabApi, t.error])
 
   // Get all status labels (from columns)
   const statusLabels = useMemo(() => {
@@ -758,7 +220,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     const labelsSet = new Set<string>()
     issues.forEach((issue) => {
       issue.labels.forEach((label) => {
-        // Exclure les labels de statut
+        // Exclude status labels
         const isStatusLabel = statusLabels.some(
           (statusLabel) =>
             label.toLowerCase().includes(statusLabel.toLowerCase()) ||
@@ -832,6 +294,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     return Array.from(assigneesMap.values())
   }, [issues])
 
+  // Event handlers
   const handleLabelFilter = (label: string, checked: boolean) => {
     if (checked) {
       setSelectedLabels((prev) => [...prev, label])
@@ -847,7 +310,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   }
 
   const handleLoadMore = (columnId: string) => {
-    // Sauvegarder la position de scroll actuelle de la colonne
+    // Save current scroll position of the column
     const columnElement = document.querySelector(`[data-column-id="${columnId}"] .overflow-y-auto`)
     const currentScrollTop = columnElement?.scrollTop || 0
 
@@ -856,7 +319,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       [columnId]: (prev[columnId] || TICKETS_PER_COLUMN) + TICKETS_PER_COLUMN,
     }))
 
-    // Restaurer la position de scroll après le re-render
+    // Restore scroll position after re-render
     setTimeout(() => {
       if (columnElement) {
         columnElement.scrollTop = currentScrollTop
@@ -879,24 +342,24 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
       const issueId = Number.parseInt(active.id as string)
 
-      // Correction: détecter si over.id est un ticket ou une colonne
+      // Detect if over.id is a ticket or a column
       let newColumnId: string
 
-      // Vérifier si over.id est un ID de colonne
+      // Check if over.id is a column ID
       const isColumn = columns.some((col) => col.id === over.id)
 
       if (isColumn) {
-        // C'est une colonne
+        // It's a column
         newColumnId = over.id as string
       } else {
-        // C'est probablement un ticket, trouver sa colonne
+        // It's probably a ticket, find its column
         const targetIssueId = Number.parseInt(over.id as string)
         const targetIssue = issues.find((issue) => issue.id === targetIssueId)
 
         if (targetIssue) {
           newColumnId = getIssueColumn(targetIssue, kanbanConfig)
         } else {
-          // Fallback: essayer de trouver la colonne par l'ID
+          // Fallback: try to find column by ID
           newColumnId = over.id as string
         }
       }
@@ -904,14 +367,13 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       const issue = issues.find((i) => i.id === issueId)
       if (!issue) return
 
-      const newColumn = columns.find((col) => col.id === newColumnId)
+      const newColumn = availableColumns.find((col) => col.id === newColumnId)
       if (!newColumn) return
 
       // Get current column for rollback
       const currentColumnId = getIssueColumn(issue, kanbanConfig)
       if (currentColumnId === newColumnId) return // No change
 
-      // Le reste du code reste identique...
       // Prepare new labels
       const statusLabels = kanbanConfig.columns.flatMap((col) => col.labels)
       const updatedLabels = issue.labels.filter(
@@ -923,8 +385,8 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           ),
       )
 
-      if (newColumn.config.matchCriteria === "labels" && newColumn.config.labels.length > 0) {
-        updatedLabels.push(newColumn.config.labels[0])
+      if (newColumn.matchCriteria === "labels" && newColumn.labels.length > 0) {
+        updatedLabels.push(newColumn.labels[0])
       }
 
       // Optimistic update
@@ -945,8 +407,8 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         })
 
         toast({
-          title: "✅ Ticket déplacé",
-          description: `Le ticket #${issue.iid} a été déplacé vers "${newColumn.name}"`,
+          title: "✅ " + t.success,
+          description: `${t.ticketMoved} #${issue.iid} ${t.movedTo} "${newColumn.name}"`,
           variant: "default",
         })
       } catch (err) {
@@ -958,15 +420,15 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           return newSet
         })
 
-        const errorMessage = err instanceof Error ? err.message : "Erreur inconnue"
+        const errorMessage = err instanceof Error ? err.message : t.unknownError
         toast({
-          title: "❌ Erreur",
-          description: `Impossible de déplacer le ticket #${issue.iid}: ${errorMessage}`,
+          title: "❌ " + t.error,
+          description: `${t.cannotMoveTicket} #${issue.iid}: ${errorMessage}`,
           variant: "destructive",
         })
       }
     },
-    [issues, columns, gitlabApi, projectId, toast],
+    [issues, columns, gitlabApi, projectId, toast, availableColumns, t],
   )
 
   const handleIssueClick = useCallback((issue: GitLabIssue) => {
@@ -1020,7 +482,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
   const handleEditFromDetailView = () => {
     if (selectedIssue) {
-      setSelectedIssue(null) // Fermer la vue détaillée
+      setSelectedIssue(null) // Close detail view
       handleEditIssueClick(selectedIssue)
     }
   }
@@ -1037,9 +499,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       start_date: null,
       due_date: null,
     })
-    setCustomLabelInput("")
-    setShowCustomLabelInput(false)
-  }, [setCustomLabelInput, setShowCustomLabelInput])
+  }, [])
 
   const handleSubmitIssue = useCallback(
     async (e: React.FormEvent) => {
@@ -1052,17 +512,17 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       try {
         setSubmittingIssue(true)
 
-        // Construire les labels finaux
+        // Build final labels
         const finalLabels = [...issueForm.labels]
 
-        // Ajouter le label de statut si nécessaire
+        // Add status label if necessary
         const selectedColumn = availableColumns.find((col) => col.id === issueForm.status)
         if (selectedColumn && selectedColumn.matchCriteria === "labels" && selectedColumn.labels.length > 0) {
           finalLabels.push(selectedColumn.labels[0])
         }
 
         if (issueModalMode === "create") {
-          // Créer une nouvelle issue
+          // Create new issue
           const newIssue = await gitlabApi.createIssue(projectId, {
             title: issueForm.title,
             description: issueForm.description || undefined,
@@ -1073,23 +533,23 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           })
 
           // Add the new issue to the list
-          // @ts-expect-error
+          // @ts-expect-error - API response type mismatch
           setIssues((prev) => [newIssue, ...prev])
 
           toast({
-            title: "✅ Issue créée",
-            description: `L'issue #${newIssue.iid} "${newIssue.title}" a été créée avec succès`,
+            title: "✅ " + t.issueCreated,
+            description: `${t.issue} #${newIssue.iid} "${newIssue.title}" ${t.createdSuccessfully}`,
             variant: "default",
           })
         } else if (issueModalMode === "edit" && editingIssue) {
-          // Mettre à jour l'issue existante
-          const updatedIssue = await gitlabApi.updateIssue(projectId, editingIssue.iid, {
+          // Update existing issue
+          await gitlabApi.updateIssue(projectId, editingIssue.iid, {
             labels: finalLabels.length > 0 ? finalLabels : undefined,
             assignee_ids: issueForm.assignee_id ? [issueForm.assignee_id] : [],
             due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : null,
           })
 
-          // Gérer la mise à jour de la start date via commentaire si elle a changé
+          // Handle start date update via comment if it changed
           const currentStartDate = editingIssue.start_date
           const newStartDate = issueForm.start_date ? format(issueForm.start_date, "yyyy-MM-dd") : null
 
@@ -1097,8 +557,8 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
             try {
               await gitlabApi.updateStartDate(projectId, editingIssue.iid, newStartDate)
             } catch (err) {
-              console.error("Erreur lors de la mise à jour de la start date:", err)
-              // On continue même si l'ajout du commentaire échoue
+              console.error("Error updating start date:", err)
+              // Continue even if comment addition fails
             }
           }
 
@@ -1122,8 +582,8 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           )
 
           toast({
-            title: "✅ Issue mise à jour",
-            description: `L'issue #${editingIssue.iid} "${issueForm.title}" a été mise à jour avec succès`,
+            title: "✅ " + t.issueUpdated,
+            description: `${t.issue} #${editingIssue.iid} "${issueForm.title}" ${t.updatedSuccessfully}`,
             variant: "default",
           })
         }
@@ -1131,9 +591,9 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         // Close modal and reset form
         handleCloseIssueModal()
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'opération"
+        const errorMessage = err instanceof Error ? err.message : t.operationError
         toast({
-          title: "❌ Erreur",
+          title: "❌ " + t.error,
           description: errorMessage,
           variant: "destructive",
         })
@@ -1151,6 +611,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       issueModalMode,
       editingIssue,
       allAssigneesWithIds,
+      t,
     ],
   )
 
@@ -1168,14 +629,14 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         setIssueToDelete(null)
 
         toast({
-          title: "✅ Issue supprimée",
-          description: `L'issue #${issue.iid} "${issue.title}" a été supprimée avec succès`,
+          title: "✅ " + t.issueDeleted,
+          description: `${t.issue} #${issue.iid} "${issue.title}" ${t.deletedSuccessfully}`,
           variant: "default",
         })
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Erreur lors de la suppression de l'issue"
+        const errorMessage = err instanceof Error ? err.message : t.deletionError
         toast({
-          title: "❌ Erreur",
+          title: "❌ " + t.error,
           description: errorMessage,
           variant: "destructive",
         })
@@ -1183,578 +644,10 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         setDeletingIssue(false)
       }
     },
-    [gitlabApi, projectId, toast],
+    [gitlabApi, projectId, toast, t],
   )
 
-  function SortableIssue({ issue }: { issue: GitLabIssue }) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-      id: issue.id.toString(),
-    })
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-    }
-
-    const getColumnColor = () => {
-      const issueColumnId = getIssueColumn(issue, kanbanConfig)
-      const column = columns.find((col) => col.id === issueColumnId)
-      return column?.color || "#6b7280"
-    }
-
-    const getDisplayLabels = (issueLabels: string[]) => {
-      const columnLabels = kanbanConfig.columns.flatMap((col) => col.labels)
-      return issueLabels.filter(
-        (label) =>
-          !columnLabels.some(
-            (colLabel) =>
-              label.toLowerCase().includes(colLabel.toLowerCase()) ||
-              colLabel.toLowerCase().includes(label.toLowerCase()),
-          ),
-      )
-    }
-
-    const displayLabels = getDisplayLabels(issue.labels)
-    const isPending = pendingUpdates.has(issue.id)
-
-    return (
-      <div ref={setNodeRef} style={style} {...attributes}>
-        <Card
-          className={`cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing ${
-            isPending ? "opacity-70 animate-pulse" : ""
-          }`}
-          onClick={(e) => {
-            // Ne pas ouvrir la modale si on clique sur le menu dropdown
-            if (!(e.target as Element).closest("[data-dropdown-trigger]")) {
-              handleIssueClick(issue)
-            }
-          }}
-        >
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between">
-              <div className="flex-1" {...listeners}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="text-xs font-mono">
-                    #{issue.iid}
-                  </Badge>
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getColumnColor() }} />
-                  {issue.state === "closed" && (
-                    <Badge variant="secondary" className="text-xs">
-                      Fermé
-                    </Badge>
-                  )}
-                  {isPending && (
-                    <Badge variant="outline" className="text-xs">
-                      ⏳
-                    </Badge>
-                  )}
-                </div>
-                <CardTitle className="text-sm font-medium leading-tight">{issue.title}</CardTitle>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                    }}
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="z-50">
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleEditIssueClick(issue)
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <Edit className="w-4 h-4 mr-2" />
-                    {t.edit}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      window.open(issue.web_url, "_blank")
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    {t.viewInGitlab}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setIssueToDelete(issue)
-                    }}
-                    className="flex items-center text-red-600 focus:text-red-600 cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {t.delete}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0" {...listeners}>
-            {issue.description && (
-              <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                {issue.description.replace(/[#*`]/g, "").substring(0, 100)}...
-              </p>
-            )}
-
-            {displayLabels.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-3">
-                {displayLabels.slice(0, 3).map((label) => (
-                  <Badge key={label} variant="secondary" className="text-xs">
-                    {label}
-                  </Badge>
-                ))}
-                {displayLabels.length > 3 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{displayLabels.length - 3}
-                  </Badge>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  {new Date(issue.created_at).toLocaleDateString("fr-FR")}
-                </div>
-                {issue.due_date && (
-                  <div className="flex items-center gap-1">
-                    <Flag className={`w-3 h-3 ${getDueDateColor(issue.due_date).icon}`} />
-                    <span
-                      className={`font-medium text-xs px-2 py-1 rounded-full ${getDueDateColor(issue.due_date).textColor} ${getDueDateColor(issue.due_date).bgColor} ${getDueDateColor(issue.due_date).borderColor} border`}
-                    >
-                      {new Date(issue.due_date).toLocaleDateString("fr-FR")}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="flex -space-x-1">
-                {issue.assignees.slice(0, 2).map((assignee) => (
-                  <Avatar key={assignee.id} className="w-6 h-6 border-2 border-white">
-                    <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
-                    <AvatarFallback className="text-xs">
-                      {assignee.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .substring(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-                {issue.assignees.length > 2 && (
-                  <div className="w-6 h-6 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-xs">
-                    +{issue.assignees.length - 2}
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  function DroppableColumn({ column }: { column: KanbanColumn & { totalIssues: number; hasMore: boolean } }) {
-    const { setNodeRef, isOver } = useDroppable({ id: column.id })
-
-    return (
-      <div className="flex flex-col h-full" data-column-id={column.id}>
-        <div className="rounded-t-lg p-4 border-b flex-shrink-0" style={{ backgroundColor: `${column.color}20` }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: column.color }} />
-              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                {column.emoji && <span>{column.emoji}</span>}
-                {column.name}
-              </h3>
-            </div>
-            <Badge variant="secondary">{column.totalIssues}</Badge>
-          </div>
-        </div>
-
-        <div
-          ref={setNodeRef}
-          className={`bg-white rounded-b-lg flex-1 p-4 border border-t-0 transition-colors overflow-y-auto ${
-            isOver ? "bg-blue-50 border-blue-200" : ""
-          }`}
-        >
-          <div className="space-y-4">
-            <SortableContext items={column.issues.map((i) => i.id.toString())} strategy={verticalListSortingStrategy}>
-              {column.issues.map((issue) => (
-                <SortableIssue key={issue.id} issue={issue} />
-              ))}
-            </SortableContext>
-
-            {column.hasMore && (
-              <Button variant="outline" className="w-full" onClick={() => handleLoadMore(column.id)} size="sm">
-                <ChevronDown className="w-4 h-4 mr-2" />
-                {t.loadMore} ({column.totalIssues - column.issues.length} remaining)
-              </Button>
-            )}
-
-            <Button
-              variant="ghost"
-              className="w-full border-2 border-dashed border-gray-300 h-12"
-              onClick={handleNewIssueClick}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {t.newIssue}
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Composant pour les commentaires avec chargement à la demande
-  function CollapsibleComments({ issue }: { issue: GitLabIssue }) {
-    const [isOpen, setIsOpen] = useState(false)
-    const [comments, setComments] = useState<GitLabComment[]>([])
-    const [loading, setLoading] = useState(false)
-    const [hasLoaded, setHasLoaded] = useState(false)
-
-    const loadComments = async () => {
-      if (hasLoaded) return
-
-      try {
-        setLoading(true)
-        const commentsData = await gitlabApi.getIssueComments(projectId, issue.iid)
-        // Filtrer les commentaires système et les commentaires de start date
-        const filteredComments = commentsData.filter(
-          (comment) => !comment.system && !comment.body.match(/\*\*Start Date:\*\*/),
-        )
-        setComments(filteredComments)
-        setHasLoaded(true)
-      } catch (err) {
-        console.error("Erreur lors du chargement des commentaires:", err)
-        setComments([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    // Calculer le nombre de commentaires visibles (sans les commentaires de start date)
-    const visibleCommentsCount = useMemo(() => {
-      if (!hasLoaded) {
-        // Estimation basée sur le nombre total moins les commentaires potentiels de start date
-        return issue.user_notes_count || 0
-      }
-      return comments.length
-    }, [hasLoaded, comments.length, issue.user_notes_count])
-
-    const handleToggle = () => {
-      if (!isOpen && !hasLoaded) {
-        loadComments()
-      }
-      setIsOpen(!isOpen)
-    }
-
-    return (
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger asChild>
-          <Button
-            variant="ghost"
-            className="w-full justify-between p-0 h-auto font-medium text-sm"
-            onClick={handleToggle}
-          >
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              {t.comments} ({visibleCommentsCount})
-            </div>
-            <div className="flex items-center gap-1">
-              {loading && <Loader2 className="w-3 h-3 animate-spin" />}
-              <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
-            </div>
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 mt-4">
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="border rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Skeleton className="w-6 h-6 rounded-full" />
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-3 w-16" />
-                  </div>
-                  <Skeleton className="h-4 w-full mb-2" />
-                  <Skeleton className="h-4 w-3/4" />
-                </div>
-              ))}
-            </div>
-          ) : comments.length > 0 ? (
-            <div className="space-y-4">
-              {comments.map((comment) => (
-                <div key={comment.id} className="border rounded-lg p-4 animate-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Avatar className="w-6 h-6">
-                      <AvatarImage src={comment.author.avatar_url || "/placeholder.svg"} alt={comment.author.name} />
-                      <AvatarFallback className="text-xs">
-                        {comment.author.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .substring(0, 2)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium">{comment.author.name}</span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(comment.created_at).toLocaleDateString("fr-FR")}
-                    </span>
-                  </div>
-                  <div className="prose prose-sm max-w-none pr-4">
-                    <ReactMarkdown
-                      components={{
-                        a: CustomLink,
-                        img: CustomImage,
-                      }}
-                    >
-                      {comment.body}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 py-4">{t.noComments}</p>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
-    )
-  }
-
-  function IssueDetailModal() {
-    if (!selectedIssue) return null
-
-    const getDisplayLabels = (issueLabels: string[]) => {
-      const columnLabels = kanbanConfig.columns.flatMap((col) => col.labels)
-      return issueLabels.filter(
-        (label) =>
-          !columnLabels.some(
-            (colLabel) =>
-              label.toLowerCase().includes(colLabel.toLowerCase()) ||
-              colLabel.toLowerCase().includes(label.toLowerCase()),
-          ),
-      )
-    }
-
-    const displayLabels = getDisplayLabels(selectedIssue.labels)
-
-    return (
-      <Dialog open={!!selectedIssue} onOpenChange={() => setSelectedIssue(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Badge variant="outline" className="font-mono">
-                #{selectedIssue.iid}
-              </Badge>
-              {selectedIssue.title}
-            </DialogTitle>
-          </DialogHeader>
-
-          <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
-            <div className="space-y-6 pr-2">
-              {/* Issue Info */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
-                    <span>
-                      {t.createdBy} {selectedIssue.author.name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    <span>{new Date(selectedIssue.created_at).toLocaleDateString("fr-FR")}</span>
-                  </div>
-                  <Badge variant="secondary">
-                    {(() => {
-                      const columnId = getIssueColumn(selectedIssue, kanbanConfig)
-                      const column = columns.find((col) => col.id === columnId)
-                      return column ? column.name : "Non assigné"
-                    })()}
-                  </Badge>
-                  {/* Labels sur la même ligne que le statut */}
-                  {displayLabels.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {displayLabels.map((label) => (
-                        <Badge key={label} variant="secondary">
-                          {label}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Dates - Ligne séparée */}
-                {(selectedIssue.start_date || selectedIssue.due_date) && (
-                  <div className="flex items-center gap-4 text-sm">
-                    {selectedIssue.start_date && (
-                      <div className="flex items-center gap-1">
-                        <PlayCircle className="w-4 h-4 text-blue-500" />
-                        <span className="font-medium text-sm px-2 py-1 rounded-md text-blue-600 bg-blue-50 border border-blue-200">
-                          {t.startDate}: {new Date(selectedIssue.start_date).toLocaleDateString("fr-FR")}
-                        </span>
-                      </div>
-                    )}
-                    {selectedIssue.due_date && (
-                      <div className="flex items-center gap-2">
-                        <Flag className={`w-4 h-4 ${getDueDateColor(selectedIssue.due_date).icon}`} />
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`font-medium text-sm px-2 py-1 rounded-md ${getDueDateColor(selectedIssue.due_date).textColor} ${getDueDateColor(selectedIssue.due_date).bgColor} ${getDueDateColor(selectedIssue.due_date).borderColor} border`}
-                          >
-                            {t.dueDate}: {new Date(selectedIssue.due_date).toLocaleDateString("fr-FR")}
-                          </span>
-                          <span className={`text-xs ${getDueDateColor(selectedIssue.due_date).textColor} opacity-75`}>
-                            ({getDueDateLabel(selectedIssue.due_date, t)})
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Labels */}
-                {/*{displayLabels.length > 0 && (*/}
-                {/*  <div className="flex flex-wrap gap-2">*/}
-                {/*    {displayLabels.map((label) => (*/}
-                {/*      <Badge key={label} variant="secondary">*/}
-                {/*        {label}*/}
-                {/*      </Badge>*/}
-                {/*    ))}*/}
-                {/*  </div>*/}
-                {/*)}*/}
-
-                {/* Assignees */}
-                {selectedIssue.assignees.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">{t.assignedTo_}</h4>
-                    <div className="flex gap-2">
-                      {selectedIssue.assignees.map((assignee) => (
-                        <div key={assignee.id} className="flex items-center gap-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
-                            <AvatarFallback className="text-xs">
-                              {assignee.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .substring(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm">{assignee.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
-              {selectedIssue.description && (
-                <>
-                  <Separator />
-                  <div className="prose prose-sm max-w-none pr-4">
-                    <ReactMarkdown
-                      components={{
-                        a: CustomLink,
-                        img: CustomImage,
-                      }}
-                    >
-                      {selectedIssue.description}
-                    </ReactMarkdown>
-                  </div>
-                </>
-              )}
-
-              <Separator />
-
-              {/* Comments */}
-              <CollapsibleComments issue={selectedIssue} />
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-4">
-                <Button onClick={handleEditFromDetailView}>
-                  <Edit className="w-4 h-4 mr-2" />
-                  {t.edit}
-                </Button>
-                <Button asChild variant="outline">
-                  <a href={selectedIssue.web_url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    {t.viewInGitlab}
-                  </a>
-                </Button>
-              </div>
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
-  // Delete confirmation dialog
-  function DeleteIssueDialog() {
-    return (
-      <AlertDialog open={!!issueToDelete} onOpenChange={() => setIssueToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Trash2 className="w-5 h-5 text-red-600" />
-              {t.deleteIssue}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>{t.deleteIssueConfirmation}</p>
-              {issueToDelete && (
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="font-mono text-xs">
-                      #{issueToDelete.iid}
-                    </Badge>
-                  </div>
-                  <p className="font-medium text-sm">{issueToDelete.title}</p>
-                </div>
-              )}
-              <p className="text-red-600 text-sm">{t.deleteIssueWarning}</p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => issueToDelete && handleDeleteIssue(issueToDelete)}
-              disabled={deletingIssue}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deletingIssue ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {t.deleting}
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  {t.delete}
-                </>
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    )
-  }
-
+  // Loading state
   if (loading) {
     return (
       <div className="h-full bg-gray-50 p-6">
@@ -1782,6 +675,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     )
   }
 
+  // Error state
   if (error) {
     return (
       <div className="h-full bg-gray-50 p-6">
@@ -1873,7 +767,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
                 <Select value={selectedAssignee} onValueChange={setSelectedAssignee}>
                   <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Assigné à" />
+                    <SelectValue placeholder={t.assignedTo} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{t.allAssignees}</SelectItem>
@@ -1894,8 +788,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
             </div>
 
             <div className="mt-4 text-sm text-gray-600">
-              {filteredIssues.length} issue{filteredIssues.length !== 1 ? "s" : ""}{" "}
-              {filteredIssues.length !== 1 ? t.issuesFound : t.issueFound}
+              {filteredIssues.length} {filteredIssues.length !== 1 ? t.issuesFound : t.issueFound}
             </div>
           </div>
         </div>
@@ -1906,7 +799,16 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
             <div className="flex gap-4 h-full" style={{ minWidth: "max-content" }}>
               {columnsWithIssues.map((column) => (
                 <div key={column.id} className="w-80 flex-shrink-0 h-full">
-                  <DroppableColumn column={column} />
+                  <KanbanColumn
+                    column={column}
+                    columns={columns}
+                    pendingUpdates={pendingUpdates}
+                    onIssueClick={handleIssueClick}
+                    onEditClick={handleEditIssueClick}
+                    onDeleteClick={setIssueToDelete}
+                    onLoadMore={handleLoadMore}
+                    onNewIssue={handleNewIssueClick}
+                  />
                 </div>
               ))}
             </div>
@@ -1914,8 +816,43 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         </div>
       </div>
 
+      {/* Drag Overlay */}
+      <DragOverlay>
+        {activeIssue ? (
+          <Card className="cursor-grabbing shadow-lg rotate-3">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className="text-xs font-mono">
+                      #{activeIssue.iid}
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-sm font-medium leading-tight">{activeIssue.title}</CardTitle>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {activeIssue.description && (
+                <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                  {activeIssue.description.replace(/[#*`]/g, "").substring(0, 100)}...
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
+      </DragOverlay>
+
       {/* Modals */}
-      {selectedIssue && <IssueDetailModal />}
+      <IssueDetailModal
+        issue={selectedIssue}
+        columns={columns}
+        onClose={() => setSelectedIssue(null)}
+        onEdit={handleEditFromDetailView}
+        customLinkComponent={CustomLink}
+        customImageComponent={CustomImage}
+      />
+
       <IssueModal
         isOpen={showIssueModal}
         onClose={handleCloseIssueModal}
@@ -1926,12 +863,16 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         allNonStatusLabels={allNonStatusLabels}
         availableColumns={availableColumns}
         isSubmitting={submittingIssue}
-        t={t}
-        language={language}
         mode={issueModalMode}
         issue={editingIssue}
       />
-      <DeleteIssueDialog />
+
+      <DeleteIssueDialog
+        issue={issueToDelete}
+        isDeleting={deletingIssue}
+        onClose={() => setIssueToDelete(null)}
+        onConfirm={handleDeleteIssue}
+      />
     </DndContext>
   )
 }
