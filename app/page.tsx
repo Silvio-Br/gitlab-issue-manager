@@ -112,7 +112,7 @@ export default function ConfigurationPage() {
               }}
             />
             <p className="text-xs text-gray-500 mt-1">
-              Pour les instances GitLab auto-hébergées (ex: https://my.gitlab.com)
+              {t.selfHostedGitlabInstance}
             </p>
           </div>
 
@@ -135,12 +135,12 @@ export default function ConfigurationPage() {
                 <AlertDescription className="text-xs">
                   <strong>{t.howToCreateToken}</strong>
                   <br />
-                  1. Allez dans GitLab → Préférences → Tokens d'accès
+                  {t.tokenInstructions1}
                   <br />
-                  2. Créez un nouveau token avec les scopes : <code className="bg-gray-100 px-1 rounded">api</code>,{" "}
+                  {t.tokenInstructions2} <code className="bg-gray-100 px-1 rounded">api</code>,{" "}
                   <code className="bg-gray-100 px-1 rounded">read_user</code>
                   <br />
-                  3. Copiez la valeur complète (commence par <code className="bg-gray-100 px-1 rounded">glpat-</code>)
+                  {t.tokenInstructions3} <code className="bg-gray-100 px-1 rounded">glpat-</code>)
                 </AlertDescription>
               </Alert>
 
