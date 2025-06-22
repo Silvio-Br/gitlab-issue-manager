@@ -1495,11 +1495,12 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     )
   }
 
-  const allLabelsForFilter = useMemo(() => {
-    const labelsSet = new Set<string>()
-    issues.forEach((issue) => issue.labels.forEach((label) => labelsSet.add(label)))
-    return Array.from(labelsSet).sort()
-  }, [issues])
+  // Remove allLabelsForFilter
+  // const allLabelsForFilter = useMemo(() => {
+  //   const labelsSet = new Set<string>()
+  //   issues.forEach((issue) => issue.labels.forEach((label) => labelsSet.add(label)))
+  //   return Array.from(labelsSet).sort()
+  // }, [issues])
 
   if (loading) {
     return (
@@ -1605,7 +1606,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                   <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
                     <DropdownMenuLabel>{t.labels}</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {allLabelsForFilter.map((label) => (
+                    {allNonStatusLabels.map((label) => (
                       <DropdownMenuCheckboxItem
                         key={label}
                         checked={selectedLabels.includes(label)}
