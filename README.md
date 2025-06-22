@@ -19,13 +19,11 @@ A modern, responsive Kanban board application for managing GitLab issues with ad
 #### Pull and Run from Docker Hub
 ```bash
 # Pull the latest image
-docker pull your-registry/gitlab-kanban-manager:latest
+docker pull ghcr.io/silvio-br/gitlab-issue-manager:latest
 
 # Run the container
 docker run -p 3000:3000 \
--e NEXT_PUBLIC_GITLAB_URL=https://gitlab.com \
--e NEXT_PUBLIC_GITLAB_TOKEN=your_gitlab_token \
-your-registry/gitlab-kanban-manager:latest
+ghcr.io/silvio-br/gitlab-issue-manager:latest
 ```
 
 #### Build and Run Locally
@@ -39,8 +37,6 @@ docker build -t gitlab-kanban-manager .
 
 # Run the container
 docker run -p 3000:3000 \
--e NEXT_PUBLIC_GITLAB_URL=https://gitlab.com \
--e NEXT_PUBLIC_GITLAB_TOKEN=your_gitlab_token \
 gitlab-kanban-manager
 ```
 
@@ -202,7 +198,7 @@ The application uses the GitLab REST API v4. Key endpoints:
 - `/projects/:id/labels` - Get project labels
 - `/projects/:id/members` - Get project members
 
-### Building
+### Building for Production
 
 #### Local Build
 ```bash
@@ -226,33 +222,50 @@ docker build -f Dockerfile.staging -t gitlab-kanban-manager:staging .
 # Build
 docker build -t gitlab-kanban-manager .
 
-# Or pull
-docker pull ghcr.io/silvio-br/gitlab-issue-manager:latest
-
 # Run in production
 docker run -d \
 --name gitlab-kanban \
 -p 80:3000 \
+--restart unless-stopped \
 -e NEXT_PUBLIC_GITLAB_URL=https://your-gitlab.com \
 -e NEXT_PUBLIC_GITLAB_TOKEN=your_token \
-gitlab-kanban-manager
-
-# Run locally
-docker run -d \
---name gitlab-kanban \
--p 80:3000 \
 gitlab-kanban-manager
 ```
 
 #### With Docker Compose (Production)
 ```yaml
+version: '3.8'
 services:
-   gitlab-kanban:
-   build: .
-   ports:
-    - "80:3000"
-   environment:
-    - NEXT_PUBLIC_GITLAB_URL=https://your-gitlab.com
-    - NEXT_PUBLIC_GITLAB_TOKEN=${GITLAB_TOKEN}
-   restart: unless-stopped
+gitlab-kanban:
+build: .
+ports:
+- "80:3000"
+environment:
+- NEXT_PUBLIC_GITLAB_URL=https://your-gitlab.com
+- NEXT_PUBLIC_GITLAB_TOKEN=${GITLAB_TOKEN}
+restart: unless-stopped
+healthcheck:
+test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+timeout: 10s
+retries: 3
 ```
+
+#### Behind Reverse Proxy (Nginx)
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
