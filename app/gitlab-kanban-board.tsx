@@ -16,7 +16,8 @@ import {
   ChevronRight,
   X,
   Trash2,
-  CalendarDays,
+  PlayCircle,
+  Flag,
 } from "lucide-react"
 import { Search, Filter, AlertCircle } from "lucide-react"
 import { DndContext, closestCorners, DragOverlay } from "@dnd-kit/core"
@@ -306,7 +307,7 @@ function NewIssueModal({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button type="button" variant="outline" className="w-full justify-start text-left font-normal">
-                        <CalendarDays className="mr-2 h-4 w-4" />
+                        <PlayCircle className="mr-2 h-4 w-4" />
                         {form.start_date ? (
                           format(form.start_date, "PPP", { locale: language === "fr" ? fr : enUS })
                         ) : (
@@ -331,7 +332,7 @@ function NewIssueModal({
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button type="button" variant="outline" className="w-full justify-start text-left font-normal">
-                        <CalendarDays className="mr-2 h-4 w-4" />
+                        <Flag className="mr-2 h-4 w-4" />
                         {form.due_date ? (
                           format(form.due_date, "PPP", { locale: language === "fr" ? fr : enUS })
                         ) : (
@@ -622,6 +623,66 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         distance: 8,
       },
     }),
+  )
+
+  // Function to transform relative GitLab URLs to absolute URLs
+  const transformGitLabUrls = useCallback(
+    (content: string) => {
+      if (!gitlabUrl || !projectId) return content
+
+      // Transform /uploads/ URLs to absolute URLs
+      return content
+        .replace(/href="(\/uploads\/[^"]+)"/g, `href="${gitlabUrl}/-/project/${projectId}$1"`)
+        .replace(/src="(\/uploads\/[^"]+)"/g, `src="${gitlabUrl}/-/project/${projectId}$1"`)
+    },
+    [gitlabUrl, projectId],
+  )
+
+  // Custom link component for ReactMarkdown
+  const CustomLink = useCallback(
+    ({ href, children, ...props }: any) => {
+      let finalHref = href
+
+      // Transform relative /uploads/ URLs
+      if (href && href.startsWith("/uploads/") && gitlabUrl && projectId) {
+        finalHref = `${gitlabUrl}/-/project/${projectId}${href}`
+      }
+
+      return (
+        <a
+          href={finalHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline"
+          {...props}
+        >
+          {children}
+        </a>
+      )
+    },
+    [gitlabUrl, projectId],
+  )
+
+  // Custom image component for ReactMarkdown
+  const CustomImage = useCallback(
+    ({ src, alt, ...props }: any) => {
+      let finalSrc = src
+
+      // Transform relative /uploads/ URLs
+      if (src && src.startsWith("/uploads/") && gitlabUrl && projectId) {
+        finalSrc = `${gitlabUrl}/-/project/${projectId}${src}`
+      }
+
+      return (
+        <img
+          src={finalSrc || "/placeholder.svg"}
+          alt={alt}
+          className="max-w-full h-auto rounded-lg border"
+          {...props}
+        />
+      )
+    },
+    [gitlabUrl, projectId],
   )
 
   // Initialize column limits
@@ -931,6 +992,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           labels: finalLabels.length > 0 ? finalLabels : undefined,
           assignee_ids: newIssueForm.assignee_id ? [newIssueForm.assignee_id] : undefined,
           due_date: newIssueForm.due_date ? format(newIssueForm.due_date, "yyyy-MM-dd") : undefined,
+          start_date: newIssueForm.start_date ? format(newIssueForm.start_date, "yyyy-MM-dd") : undefined,
         })
 
         // Add the new issue to the list
@@ -1126,7 +1188,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                 </div>
                 {issue.due_date && (
                   <div className="flex items-center gap-1">
-                    <CalendarDays className={`w-3 h-3 ${getDueDateColor(issue.due_date).icon}`} />
+                    <Flag className={`w-3 h-3 ${getDueDateColor(issue.due_date).icon}`} />
                     <span
                       className={`font-medium text-xs px-2 py-1 rounded-full ${getDueDateColor(issue.due_date).textColor} ${getDueDateColor(issue.due_date).bgColor} ${getDueDateColor(issue.due_date).borderColor} border`}
                     >
@@ -1226,7 +1288,11 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       try {
         setLoading(true)
         const commentsData = await gitlabApi.getIssueComments(projectId, issue.iid)
-        setComments(commentsData.filter((comment) => !comment.system))
+        // Filtrer les commentaires système et les commentaires de start date
+        const filteredComments = commentsData.filter(
+          (comment) => !comment.system && !comment.body.match(/\*\*Start Date:\*\*/),
+        )
+        setComments(filteredComments)
         setHasLoaded(true)
       } catch (err) {
         console.error("Erreur lors du chargement des commentaires:", err)
@@ -1235,6 +1301,15 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         setLoading(false)
       }
     }
+
+    // Calculer le nombre de commentaires visibles (sans les commentaires de start date)
+    const visibleCommentsCount = useMemo(() => {
+      if (!hasLoaded) {
+        // Estimation basée sur le nombre total moins les commentaires potentiels de start date
+        return issue.user_notes_count || 0
+      }
+      return comments.length
+    }, [hasLoaded, comments.length, issue.user_notes_count])
 
     const handleToggle = () => {
       if (!isOpen && !hasLoaded) {
@@ -1253,7 +1328,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           >
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4" />
-              {t.comments} ({issue.user_notes_count || 0})
+              {t.comments} ({visibleCommentsCount})
             </div>
             <div className="flex items-center gap-1">
               {loading && <Loader2 className="w-3 h-3 animate-spin" />}
@@ -1296,8 +1371,15 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                       {new Date(comment.created_at).toLocaleDateString("fr-FR")}
                     </span>
                   </div>
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>{comment.body}</ReactMarkdown>
+                  <div className="prose prose-sm max-w-none pr-4">
+                    <ReactMarkdown
+                      components={{
+                        a: CustomLink,
+                        img: CustomImage,
+                      }}
+                    >
+                      {comment.body}
+                    </ReactMarkdown>
                   </div>
                 </div>
               ))}
@@ -1339,8 +1421,8 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
             </DialogTitle>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[calc(90vh-120px)]">
-            <div className="space-y-6">
+          <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
+            <div className="space-y-6 pr-2">
               {/* Issue Info */}
               <div className="space-y-4">
                 <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -1354,21 +1436,6 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                     <Clock className="w-4 h-4" />
                     <span>{new Date(selectedIssue.created_at).toLocaleDateString("fr-FR")}</span>
                   </div>
-                  {selectedIssue.due_date && (
-                    <div className="flex items-center gap-2">
-                      <CalendarDays className={`w-4 h-4 ${getDueDateColor(selectedIssue.due_date).icon}`} />
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`font-medium text-sm px-2 py-1 rounded-md ${getDueDateColor(selectedIssue.due_date).textColor} ${getDueDateColor(selectedIssue.due_date).bgColor} ${getDueDateColor(selectedIssue.due_date).borderColor} border`}
-                        >
-                          {t.dueDate}: {new Date(selectedIssue.due_date).toLocaleDateString("fr-FR")}
-                        </span>
-                        <span className={`text-xs ${getDueDateColor(selectedIssue.due_date).textColor} opacity-75`}>
-                          ({getDueDateLabel(selectedIssue.due_date, t)})
-                        </span>
-                      </div>
-                    </div>
-                  )}
                   <Badge variant="secondary">
                     {(() => {
                       const columnId = getIssueColumn(selectedIssue, kanbanConfig)
@@ -1377,6 +1444,35 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                     })()}
                   </Badge>
                 </div>
+
+                {/* Dates - Ligne séparée */}
+                {(selectedIssue.start_date || selectedIssue.due_date) && (
+                  <div className="flex items-center gap-4 text-sm">
+                    {selectedIssue.start_date && (
+                      <div className="flex items-center gap-1">
+                        <PlayCircle className="w-4 h-4 text-blue-500" />
+                        <span className="font-medium text-sm px-2 py-1 rounded-md text-blue-600 bg-blue-50 border border-blue-200">
+                          {t.startDate}: {new Date(selectedIssue.start_date).toLocaleDateString("fr-FR")}
+                        </span>
+                      </div>
+                    )}
+                    {selectedIssue.due_date && (
+                      <div className="flex items-center gap-2">
+                        <Flag className={`w-4 h-4 ${getDueDateColor(selectedIssue.due_date).icon}`} />
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`font-medium text-sm px-2 py-1 rounded-md ${getDueDateColor(selectedIssue.due_date).textColor} ${getDueDateColor(selectedIssue.due_date).bgColor} ${getDueDateColor(selectedIssue.due_date).borderColor} border`}
+                          >
+                            {t.dueDate}: {new Date(selectedIssue.due_date).toLocaleDateString("fr-FR")}
+                          </span>
+                          <span className={`text-xs ${getDueDateColor(selectedIssue.due_date).textColor} opacity-75`}>
+                            ({getDueDateLabel(selectedIssue.due_date, t)})
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Labels */}
                 {displayLabels.length > 0 && (
@@ -1418,8 +1514,15 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
               {selectedIssue.description && (
                 <>
                   <Separator />
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>{selectedIssue.description}</ReactMarkdown>
+                  <div className="prose prose-sm max-w-none pr-4">
+                    <ReactMarkdown
+                      components={{
+                        a: CustomLink,
+                        img: CustomImage,
+                      }}
+                    >
+                      {selectedIssue.description}
+                    </ReactMarkdown>
                   </div>
                 </>
               )}
@@ -1494,13 +1597,6 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       </AlertDialog>
     )
   }
-
-  // Remove allLabelsForFilter
-  // const allLabelsForFilter = useMemo(() => {
-  //   const labelsSet = new Set<string>()
-  //   issues.forEach((issue) => issue.labels.forEach((label) => labelsSet.add(label)))
-  //   return Array.from(labelsSet).sort()
-  // }, [issues])
 
   if (loading) {
     return (

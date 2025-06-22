@@ -57,6 +57,7 @@ export interface GitLabIssue {
   upvotes: number
   downvotes: number
   due_date: any | null
+  start_date?: string | null // Ajouté pour la start date extraite des commentaires
   confidential: boolean
   discussion_locked: any | null
   web_url: string
@@ -168,11 +169,46 @@ export class GitLabAPI {
     const query = searchParams.toString()
     const endpoint = `/projects/${encodeURIComponent(projectId)}/issues${query ? `?${query}` : ""}`
 
-    return this.request<GitLabIssue[]>(endpoint)
+    const issues = await this.request<GitLabIssue[]>(endpoint)
+
+    // Pour chaque issue, extraire la start date des commentaires si elle existe
+    const issuesWithStartDate = await Promise.all(
+      issues.map(async (issue) => {
+        try {
+          const startDate = await this.extractStartDateFromComments(projectId, issue.iid)
+          return { ...issue, start_date: startDate }
+        } catch (err) {
+          // En cas d'erreur, on continue sans start date
+          return issue
+        }
+      }),
+    )
+
+    return issuesWithStartDate
   }
 
   async getIssueComments(projectId: string, issueIid: number): Promise<GitLabComment[]> {
     return this.request<GitLabComment[]>(`/projects/${encodeURIComponent(projectId)}/issues/${issueIid}/notes`)
+  }
+
+  // Nouvelle méthode pour extraire la start date des commentaires
+  private async extractStartDateFromComments(projectId: string, issueIid: number): Promise<string | null> {
+    try {
+      const comments = await this.getIssueComments(projectId, issueIid)
+
+      // Chercher un commentaire contenant la start date
+      for (const comment of comments) {
+        const startDateMatch = comment.body.match(/\*\*Start Date:\*\*\s*(\d{4}-\d{2}-\d{2})/i)
+        if (startDateMatch) {
+          return startDateMatch[1]
+        }
+      }
+
+      return null
+    } catch (err) {
+      console.error("Erreur lors de l'extraction de la start date:", err)
+      return null
+    }
   }
 
   async updateIssue(
@@ -216,6 +252,7 @@ export class GitLabAPI {
       assignee_ids?: number[]
       milestone_id?: number | null
       due_date?: string | null
+      start_date?: string | null // Ajouté pour la start date
     },
   ): Promise<GitLabIssue> {
     const url = `${this.baseUrl}/projects/${encodeURIComponent(projectId)}/issues`
@@ -227,17 +264,58 @@ export class GitLabAPI {
       headers["PRIVATE-TOKEN"] = this.token
     }
 
+    // Créer l'issue sans la start_date (non supportée par GitLab)
+    const { start_date, ...issueData } = data
+
     const response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify(data),
+      body: JSON.stringify(issueData),
     })
 
     if (!response.ok) {
       throw new Error(`GitLab API Error: ${response.status} ${response.statusText}`)
     }
 
-    return response.json()
+    const newIssue = await response.json()
+
+    // Si une start_date est fournie, l'ajouter en commentaire
+    if (start_date) {
+      try {
+        await this.addStartDateComment(projectId, newIssue.iid, start_date)
+        // Ajouter la start_date à l'objet retourné
+        newIssue.start_date = start_date
+      } catch (err) {
+        console.error("Erreur lors de l'ajout du commentaire start date:", err)
+        // On continue même si l'ajout du commentaire échoue
+      }
+    }
+
+    return newIssue
+  }
+
+  // Nouvelle méthode pour ajouter un commentaire avec la start date
+  private async addStartDateComment(projectId: string, issueIid: number, startDate: string): Promise<void> {
+    const url = `${this.baseUrl}/projects/${encodeURIComponent(projectId)}/issues/${issueIid}/notes`
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    }
+
+    if (this.token) {
+      headers["PRIVATE-TOKEN"] = this.token
+    }
+
+    const commentBody = `**Start Date:** ${startDate}`
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ body: commentBody }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`GitLab API Error: ${response.status} ${response.statusText}`)
+    }
   }
 
   async deleteIssue(projectId: string, issueIid: number): Promise<void> {
