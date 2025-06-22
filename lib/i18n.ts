@@ -127,6 +127,15 @@ export interface Translations {
   deleteIssueConfirmation: string
   deleteIssueWarning: string
   deleting: string
+
+  // Due date labels
+  overdueDays: string
+  overdueDay: string
+  dueToday: string
+  dueTomorrow: string
+  dueInDays: string
+  day: string
+  days: string
 }
 
 export const translations: Record<Language, Translations> = {
@@ -257,6 +266,15 @@ export const translations: Record<Language, Translations> = {
     deleteIssueConfirmation: "Are you sure you want to delete this issue?",
     deleteIssueWarning: "This action cannot be undone. The issue will be permanently deleted from GitLab.",
     deleting: "Deleting...",
+
+    // Due date labels
+    overdueDays: "overdue by",
+    overdueDay: "overdue by",
+    dueToday: "Due today",
+    dueTomorrow: "Due tomorrow",
+    dueInDays: "in",
+    day: "day",
+    days: "days",
   },
   fr: {
     // Common
@@ -385,5 +403,14 @@ export const translations: Record<Language, Translations> = {
     deleteIssueConfirmation: "Êtes-vous sûr de vouloir supprimer cette issue ?",
     deleteIssueWarning: "Cette action ne peut pas être annulée. L'issue sera définitivement supprimée de GitLab.",
     deleting: "Suppression...",
+
+    // Due date labels
+    overdueDays: "en retard de",
+    overdueDay: "en retard de",
+    dueToday: "Échéance aujourd'hui",
+    dueTomorrow: "Échéance demain",
+    dueInDays: "dans",
+    day: "jour",
+    days: "jours",
   },
 }

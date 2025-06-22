@@ -75,6 +75,75 @@ import { kanbanConfig, getIssueColumn, getSortedColumns, type KanbanColumnConfig
 import { useLanguage } from "@/contexts/language-context"
 import { useToast } from "@/hooks/use-toast"
 
+// Utility function to get due date color based on urgency
+const getDueDateColor = (dueDate: string) => {
+  const today = new Date()
+  const due = new Date(dueDate)
+  const diffTime = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) {
+    // Overdue - Red
+    return {
+      textColor: "text-red-600",
+      bgColor: "bg-red-50",
+      borderColor: "border-red-200",
+      icon: "text-red-500",
+    }
+  } else if (diffDays <= 1) {
+    // Due today or tomorrow - Orange
+    return {
+      textColor: "text-orange-600",
+      bgColor: "bg-orange-50",
+      borderColor: "border-orange-200",
+      icon: "text-orange-500",
+    }
+  } else if (diffDays <= 3) {
+    // Due in 2-3 days - Amber
+    return {
+      textColor: "text-amber-600",
+      bgColor: "bg-amber-50",
+      borderColor: "border-amber-200",
+      icon: "text-amber-500",
+    }
+  } else if (diffDays <= 7) {
+    // Due in a week - Yellow
+    return {
+      textColor: "text-yellow-600",
+      bgColor: "bg-yellow-50",
+      borderColor: "border-yellow-200",
+      icon: "text-yellow-500",
+    }
+  } else {
+    // Not urgent - Green/Normal
+    return {
+      textColor: "text-green-600",
+      bgColor: "bg-green-50",
+      borderColor: "border-green-200",
+      icon: "text-green-500",
+    }
+  }
+}
+
+// Utility function to get due date label with i18n
+const getDueDateLabel = (dueDate: string, t: any) => {
+  const today = new Date()
+  const due = new Date(dueDate)
+  const diffTime = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) {
+    const overdueDays = Math.abs(diffDays)
+    return `${t.overdueDays} ${overdueDays} ${overdueDays > 1 ? t.days : t.day}`
+  } else if (diffDays === 0) {
+    return t.dueToday
+  } else if (diffDays === 1) {
+    return t.dueTomorrow
+  } else {
+    return `${t.dueInDays} ${diffDays} ${diffDays > 1 ? t.days : t.day}`
+  }
+}
+
 interface KanbanColumn {
   id: string
   name: string
@@ -148,6 +217,11 @@ function NewIssueModal({
   const [customLabelInput, setCustomLabelInput] = useState("")
   const [showCustomLabelInput, setShowCustomLabelInput] = useState(false)
 
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    onSubmit(e)
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
@@ -159,7 +233,7 @@ function NewIssueModal({
         </DialogHeader>
 
         <ScrollArea className="flex-1 overflow-y-auto">
-          <form onSubmit={onSubmit} className="px-1">
+          <div className="px-1">
             <div className="space-y-6 pr-3 pb-4">
               {/* Title */}
               <div className="space-y-2">
@@ -231,7 +305,7 @@ function NewIssueModal({
                   <Label>{t.startDate}</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Button type="button" variant="outline" className="w-full justify-start text-left font-normal">
                         <CalendarDays className="mr-2 h-4 w-4" />
                         {form.start_date ? (
                           format(form.start_date, "PPP", { locale: language === "fr" ? fr : enUS })
@@ -256,7 +330,7 @@ function NewIssueModal({
                   <Label>{t.dueDate}</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Button type="button" variant="outline" className="w-full justify-start text-left font-normal">
                         <CalendarDays className="mr-2 h-4 w-4" />
                         {form.due_date ? (
                           format(form.due_date, "PPP", { locale: language === "fr" ? fr : enUS })
@@ -469,7 +543,7 @@ function NewIssueModal({
                 </div>
               )}
             </div>
-          </form>
+          </div>
         </ScrollArea>
 
         {/* Actions en bas, toujours visibles */}
@@ -477,7 +551,7 @@ function NewIssueModal({
           <Button type="button" variant="outline" onClick={onClose}>
             {t.cancel}
           </Button>
-          <Button type="submit" disabled={!form.title.trim() || isCreating} onClick={onSubmit}>
+          <Button type="button" disabled={!form.title.trim() || isCreating} onClick={handleFormSubmit}>
             {isCreating ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -989,7 +1063,6 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                     variant="ghost"
                     size="sm"
                     className="h-8 w-8 p-0"
-                    data-dropdown-trigger
                     onClick={(e) => {
                       e.stopPropagation()
                     }}
@@ -997,12 +1070,16 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                     <MoreHorizontal className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuItem asChild>
-                    <a href={issue.web_url} target="_blank" rel="noopener noreferrer" className="flex items-center">
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      {t.viewInGitlab}
-                    </a>
+                <DropdownMenuContent align="end" className="z-50">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(issue.web_url, "_blank")
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    {t.viewInGitlab}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -1010,7 +1087,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                       e.stopPropagation()
                       setIssueToDelete(issue)
                     }}
-                    className="flex items-center text-red-600 focus:text-red-600"
+                    className="flex items-center text-red-600 focus:text-red-600 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     {t.delete}
@@ -1049,8 +1126,10 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                 </div>
                 {issue.due_date && (
                   <div className="flex items-center gap-1">
-                    <CalendarDays className="w-3 h-3" />
-                    <span className="text-orange-600 font-medium">
+                    <CalendarDays className={`w-3 h-3 ${getDueDateColor(issue.due_date).icon}`} />
+                    <span
+                      className={`font-medium text-xs px-2 py-1 rounded-full ${getDueDateColor(issue.due_date).textColor} ${getDueDateColor(issue.due_date).bgColor} ${getDueDateColor(issue.due_date).borderColor} border`}
+                    >
                       {new Date(issue.due_date).toLocaleDateString("fr-FR")}
                     </span>
                   </div>
@@ -1276,11 +1355,18 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                     <span>{new Date(selectedIssue.created_at).toLocaleDateString("fr-FR")}</span>
                   </div>
                   {selectedIssue.due_date && (
-                    <div className="flex items-center gap-1">
-                      <CalendarDays className="w-4 h-4" />
-                      <span className="text-orange-600 font-medium">
-                        {t.dueDate}: {new Date(selectedIssue.due_date).toLocaleDateString("fr-FR")}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className={`w-4 h-4 ${getDueDateColor(selectedIssue.due_date).icon}`} />
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`font-medium text-sm px-2 py-1 rounded-md ${getDueDateColor(selectedIssue.due_date).textColor} ${getDueDateColor(selectedIssue.due_date).bgColor} ${getDueDateColor(selectedIssue.due_date).borderColor} border`}
+                        >
+                          {t.dueDate}: {new Date(selectedIssue.due_date).toLocaleDateString("fr-FR")}
+                        </span>
+                        <span className={`text-xs ${getDueDateColor(selectedIssue.due_date).textColor} opacity-75`}>
+                          ({getDueDateLabel(selectedIssue.due_date, t)})
+                        </span>
+                      </div>
                     </div>
                   )}
                   <Badge variant="secondary">
