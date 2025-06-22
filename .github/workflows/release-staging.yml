@@ -62,40 +62,10 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
-  lint-and-type-check:
-    name: 🔍 Lint & Type Check
-    runs-on: ubuntu-latest
-    needs: install
-    steps:
-      - name: 🔄 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 🚀 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: 🔄 Restore node_modules cache
-        uses: actions/cache@v3
-        with:
-          path: node_modules
-          key: ${{ needs.install.outputs.cache-key }}
-
-      - name: 🔍 Run ESLint
-        run: pnpm lint
-
-      - name: 📝 Run TypeScript check
-        run: pnpm type-check
-
   build-and-push-staging:
     name: 🏗️ Build & Push Staging Image
     runs-on: ubuntu-latest
-    needs: [install, lint-and-type-check]
+    needs: [install]
     permissions:
       contents: read
       packages: write

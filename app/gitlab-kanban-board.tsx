@@ -168,7 +168,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         ])
 
         setProject(projectData)
-        // @ts-ignore
+        // @ts-expect-error
         setIssues(issuesData)
 
         const configColumns = getSortedColumns(kanbanConfig).map((columnConfig) => ({
@@ -389,7 +389,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       })
 
       // Add the new issue to the list
-      // @ts-ignore
+      // @ts-expect-error
       setIssues((prev) => [newIssue, ...prev])
 
       // Close modal and reset form
