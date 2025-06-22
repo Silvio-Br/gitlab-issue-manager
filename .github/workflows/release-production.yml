@@ -113,5 +113,3 @@ jobs:
           build-args: |
             NODE_VERSION=${{ env.NODE_VERSION }}
             PNPM_VERSION=${{ env.PNPM_VERSION }}
-            BUILD_ENV=production
-
