@@ -140,6 +140,11 @@ export interface Translations {
   dueInDays: string
   day: string
   days: string
+
+  // Issue editing
+  editIssue: string
+  updateIssue: string
+  updating: string
 }
 
 export const translations: Record<Language, Translations> = {
@@ -283,6 +288,11 @@ export const translations: Record<Language, Translations> = {
     dueInDays: "in",
     day: "day",
     days: "days",
+
+    // Issue editing
+    editIssue: "Edit Issue",
+    updateIssue: "Update Issue",
+    updating: "Updating...",
   },
   fr: {
     // Common
@@ -424,5 +434,10 @@ export const translations: Record<Language, Translations> = {
     dueInDays: "dans",
     day: "jour",
     days: "jours",
+
+    // Issue editing
+    editIssue: "Modifier l'issue",
+    updateIssue: "Mettre à jour",
+    updating: "Mise à jour...",
   },
 }

@@ -18,9 +18,10 @@ import {
   Trash2,
   PlayCircle,
   Flag,
+  Edit,
 } from "lucide-react"
 import { Search, Filter, AlertCircle } from "lucide-react"
-import { DndContext, closestCorners, DragOverlay } from "@dnd-kit/core"
+import { DndContext, closestCorners } from "@dnd-kit/core"
 import {
   type DragEndEvent,
   type DragStartEvent,
@@ -174,7 +175,7 @@ interface GitLabKanbanBoardProps {
   gitlabUrl?: string
 }
 
-interface NewIssueForm {
+interface IssueForm {
   title: string
   description: string
   status: string // ID de la colonne
@@ -187,34 +188,38 @@ interface NewIssueForm {
 const TICKETS_PER_COLUMN = 10
 
 // Ajouter cette interface avant le composant principal
-interface NewIssueModalProps {
+interface IssueModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (e: React.FormEvent) => Promise<void>
-  form: NewIssueForm
-  setForm: React.Dispatch<React.SetStateAction<NewIssueForm>>
+  form: IssueForm
+  setForm: React.Dispatch<React.SetStateAction<IssueForm>>
   allAssigneesWithIds: any[]
   allNonStatusLabels: string[]
   availableColumns: KanbanColumnConfig[]
-  isCreating: boolean
+  isSubmitting: boolean
   t: any
   language: string
+  mode: "create" | "edit"
+  issue?: GitLabIssue
 }
 
-// Définir NewIssueModal comme composant séparé avant GitLabKanbanBoard
-function NewIssueModal({
-                         isOpen,
-                         onClose,
-                         onSubmit,
-                         form,
-                         setForm,
-                         allAssigneesWithIds,
-                         allNonStatusLabels,
-                         availableColumns,
-                         isCreating,
-                         t,
-                         language,
-                       }: NewIssueModalProps) {
+// Définir IssueModal comme composant séparé avant GitLabKanbanBoard
+function IssueModal({
+                      isOpen,
+                      onClose,
+                      onSubmit,
+                      form,
+                      setForm,
+                      allAssigneesWithIds,
+                      allNonStatusLabels,
+                      availableColumns,
+                      isSubmitting,
+                      t,
+                      language,
+                      mode,
+                      issue,
+                    }: IssueModalProps) {
   const [customLabelInput, setCustomLabelInput] = useState("")
   const [showCustomLabelInput, setShowCustomLabelInput] = useState(false)
 
@@ -223,13 +228,22 @@ function NewIssueModal({
     onSubmit(e)
   }
 
+  const title = mode === "create" ? t.newIssue : t.editIssue
+  const submitText = mode === "create" ? t.createIssue : t.updateIssue
+  const submittingText = mode === "create" ? t.creating : t.updating
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            {t.newIssue}
+            {mode === "create" ? <Plus className="w-5 h-5" /> : <Edit className="w-5 h-5" />}
+            {title}
+            {mode === "edit" && issue && (
+              <Badge variant="outline" className="font-mono ml-2">
+                #{issue.iid}
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -552,16 +566,16 @@ function NewIssueModal({
           <Button type="button" variant="outline" onClick={onClose}>
             {t.cancel}
           </Button>
-          <Button type="button" disabled={!form.title.trim() || isCreating} onClick={handleFormSubmit}>
-            {isCreating ? (
+          <Button type="button" disabled={!form.title.trim() || isSubmitting} onClick={handleFormSubmit}>
+            {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {t.creating}
+                {submittingText}
               </>
             ) : (
               <>
-                <Plus className="w-4 h-4 mr-2" />
-                {t.createIssue}
+                {mode === "create" ? <Plus className="w-4 h-4 mr-2" /> : <Edit className="w-4 h-4 mr-2" />}
+                {submitText}
               </>
             )}
           </Button>
@@ -587,10 +601,12 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
   // Modal state
   const [selectedIssue, setSelectedIssue] = useState<GitLabIssue | null>(null)
+  const [editingIssue, setEditingIssue] = useState<GitLabIssue | null>(null)
 
-  // New issue modal state
-  const [showNewIssueModal, setShowNewIssueModal] = useState(false)
-  const [newIssueForm, setNewIssueForm] = useState<NewIssueForm>({
+  // Issue modal state (create/edit)
+  const [showIssueModal, setShowIssueModal] = useState(false)
+  const [issueModalMode, setIssueModalMode] = useState<"create" | "edit">("create")
+  const [issueForm, setIssueForm] = useState<IssueForm>({
     title: "",
     description: "",
     status: "open", // Statut par défaut
@@ -599,7 +615,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     start_date: null,
     due_date: null,
   })
-  const [creatingIssue, setCreatingIssue] = useState(false)
+  const [submittingIssue, setSubmittingIssue] = useState(false)
   const [customLabelInput, setCustomLabelInput] = useState("")
   const [showCustomLabelInput, setShowCustomLabelInput] = useState(false)
 
@@ -756,9 +772,9 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     return Array.from(labelsSet).sort()
   }, [issues, statusLabels])
 
-  // Get available columns for status selection (exclude closed if creating new issue)
+  // Get available columns for status selection
   const availableColumns = useMemo(() => {
-    return getSortedColumns(kanbanConfig).filter((col) => col.id !== "closed")
+    return getSortedColumns(kanbanConfig)
   }, [])
 
   // Filter issues based on search and filters
@@ -831,10 +847,21 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   }
 
   const handleLoadMore = (columnId: string) => {
+    // Sauvegarder la position de scroll actuelle de la colonne
+    const columnElement = document.querySelector(`[data-column-id="${columnId}"] .overflow-y-auto`)
+    const currentScrollTop = columnElement?.scrollTop || 0
+
     setColumnLimits((prev) => ({
       ...prev,
       [columnId]: (prev[columnId] || TICKETS_PER_COLUMN) + TICKETS_PER_COLUMN,
     }))
+
+    // Restaurer la position de scroll après le re-render
+    setTimeout(() => {
+      if (columnElement) {
+        columnElement.scrollTop = currentScrollTop
+      }
+    }, 0)
   }
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -948,12 +975,60 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   }, [])
 
   const handleNewIssueClick = () => {
-    setShowNewIssueModal(true)
+    setIssueModalMode("create")
+    setIssueForm({
+      title: "",
+      description: "",
+      status: "open",
+      labels: [],
+      assignee_id: null,
+      start_date: null,
+      due_date: null,
+    })
+    setShowIssueModal(true)
   }
 
-  const handleCloseNewIssueModal = useCallback(() => {
-    setShowNewIssueModal(false)
-    setNewIssueForm({
+  const handleEditIssueClick = (issue: GitLabIssue) => {
+    setEditingIssue(issue)
+    setIssueModalMode("edit")
+
+    // Get non-status labels
+    const statusLabels = kanbanConfig.columns.flatMap((col) => col.labels)
+    const nonStatusLabels = issue.labels.filter(
+      (label) =>
+        !statusLabels.some(
+          (statusLabel) =>
+            label.toLowerCase().includes(statusLabel.toLowerCase()) ||
+            statusLabel.toLowerCase().includes(label.toLowerCase()),
+        ),
+    )
+
+    // Get current column
+    const currentColumn = getIssueColumn(issue, kanbanConfig)
+
+    setIssueForm({
+      title: issue.title,
+      description: issue.description || "",
+      status: currentColumn,
+      labels: nonStatusLabels,
+      assignee_id: issue.assignees.length > 0 ? issue.assignees[0].id : null,
+      start_date: issue.start_date ? new Date(issue.start_date) : null,
+      due_date: issue.due_date ? new Date(issue.due_date) : null,
+    })
+    setShowIssueModal(true)
+  }
+
+  const handleEditFromDetailView = () => {
+    if (selectedIssue) {
+      setSelectedIssue(null) // Fermer la vue détaillée
+      handleEditIssueClick(selectedIssue)
+    }
+  }
+
+  const handleCloseIssueModal = useCallback(() => {
+    setShowIssueModal(false)
+    setEditingIssue(null)
+    setIssueForm({
       title: "",
       description: "",
       status: "open",
@@ -966,59 +1041,117 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     setShowCustomLabelInput(false)
   }, [setCustomLabelInput, setShowCustomLabelInput])
 
-  const handleCreateIssue = useCallback(
+  const handleSubmitIssue = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
 
-      if (!newIssueForm.title.trim()) {
+      if (!issueForm.title.trim()) {
         return
       }
 
       try {
-        setCreatingIssue(true)
+        setSubmittingIssue(true)
 
         // Construire les labels finaux
-        const finalLabels = [...newIssueForm.labels]
+        const finalLabels = [...issueForm.labels]
 
         // Ajouter le label de statut si nécessaire
-        const selectedColumn = availableColumns.find((col) => col.id === newIssueForm.status)
+        const selectedColumn = availableColumns.find((col) => col.id === issueForm.status)
         if (selectedColumn && selectedColumn.matchCriteria === "labels" && selectedColumn.labels.length > 0) {
           finalLabels.push(selectedColumn.labels[0])
         }
 
-        const newIssue = await gitlabApi.createIssue(projectId, {
-          title: newIssueForm.title,
-          description: newIssueForm.description || undefined,
-          labels: finalLabels.length > 0 ? finalLabels : undefined,
-          assignee_ids: newIssueForm.assignee_id ? [newIssueForm.assignee_id] : undefined,
-          due_date: newIssueForm.due_date ? format(newIssueForm.due_date, "yyyy-MM-dd") : undefined,
-          start_date: newIssueForm.start_date ? format(newIssueForm.start_date, "yyyy-MM-dd") : undefined,
-        })
+        if (issueModalMode === "create") {
+          // Créer une nouvelle issue
+          const newIssue = await gitlabApi.createIssue(projectId, {
+            title: issueForm.title,
+            description: issueForm.description || undefined,
+            labels: finalLabels.length > 0 ? finalLabels : undefined,
+            assignee_ids: issueForm.assignee_id ? [issueForm.assignee_id] : undefined,
+            due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : undefined,
+            start_date: issueForm.start_date ? format(issueForm.start_date, "yyyy-MM-dd") : undefined,
+          })
 
-        // Add the new issue to the list
-        // @ts-expect-error
-        setIssues((prev) => [newIssue, ...prev])
+          // Add the new issue to the list
+          // @ts-expect-error
+          setIssues((prev) => [newIssue, ...prev])
+
+          toast({
+            title: "✅ Issue créée",
+            description: `L'issue #${newIssue.iid} "${newIssue.title}" a été créée avec succès`,
+            variant: "default",
+          })
+        } else if (issueModalMode === "edit" && editingIssue) {
+          // Mettre à jour l'issue existante
+          const updatedIssue = await gitlabApi.updateIssue(projectId, editingIssue.iid, {
+            labels: finalLabels.length > 0 ? finalLabels : undefined,
+            assignee_ids: issueForm.assignee_id ? [issueForm.assignee_id] : [],
+            due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : null,
+          })
+
+          // Gérer la mise à jour de la start date via commentaire si elle a changé
+          const currentStartDate = editingIssue.start_date
+          const newStartDate = issueForm.start_date ? format(issueForm.start_date, "yyyy-MM-dd") : null
+
+          if (currentStartDate !== newStartDate && newStartDate) {
+            try {
+              await gitlabApi.updateStartDate(projectId, editingIssue.iid, newStartDate)
+            } catch (err) {
+              console.error("Erreur lors de la mise à jour de la start date:", err)
+              // On continue même si l'ajout du commentaire échoue
+            }
+          }
+
+          // Update the issue in the list
+          setIssues((prev) =>
+            prev.map((issue) =>
+              issue.id === editingIssue.id
+                ? {
+                  ...issue,
+                  title: issueForm.title,
+                  description: issueForm.description,
+                  labels: finalLabels,
+                  assignees: issueForm.assignee_id
+                    ? allAssigneesWithIds.filter((a) => a.id === issueForm.assignee_id)
+                    : [],
+                  due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : null,
+                  start_date: newStartDate,
+                }
+                : issue,
+            ),
+          )
+
+          toast({
+            title: "✅ Issue mise à jour",
+            description: `L'issue #${editingIssue.iid} "${issueForm.title}" a été mise à jour avec succès`,
+            variant: "default",
+          })
+        }
 
         // Close modal and reset form
-        handleCloseNewIssueModal()
-
-        toast({
-          title: "✅ Issue créée",
-          description: `L'issue #${newIssue.iid} "${newIssue.title}" a été créée avec succès`,
-          variant: "default",
-        })
+        handleCloseIssueModal()
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Erreur lors de la création de l'issue"
+        const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'opération"
         toast({
           title: "❌ Erreur",
           description: errorMessage,
           variant: "destructive",
         })
       } finally {
-        setCreatingIssue(false)
+        setSubmittingIssue(false)
       }
     },
-    [newIssueForm, gitlabApi, projectId, handleCloseNewIssueModal, toast, availableColumns],
+    [
+      issueForm,
+      gitlabApi,
+      projectId,
+      handleCloseIssueModal,
+      toast,
+      availableColumns,
+      issueModalMode,
+      editingIssue,
+      allAssigneesWithIds,
+    ],
   )
 
   const handleDeleteIssue = useCallback(
@@ -1136,6 +1269,16 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation()
+                      handleEditIssueClick(issue)
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    {t.edit}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
                       window.open(issue.web_url, "_blank")
                     }}
                     className="cursor-pointer"
@@ -1227,7 +1370,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full" data-column-id={column.id}>
         <div className="rounded-t-lg p-4 border-b flex-shrink-0" style={{ backgroundColor: `${column.color}20` }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1392,7 +1535,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     )
   }
 
-  function IssueModal() {
+  function IssueDetailModal() {
     if (!selectedIssue) return null
 
     const getDisplayLabels = (issueLabels: string[]) => {
@@ -1443,6 +1586,16 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                       return column ? column.name : "Non assigné"
                     })()}
                   </Badge>
+                  {/* Labels sur la même ligne que le statut */}
+                  {displayLabels.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {displayLabels.map((label) => (
+                        <Badge key={label} variant="secondary">
+                          {label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Dates - Ligne séparée */}
@@ -1475,15 +1628,15 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                 )}
 
                 {/* Labels */}
-                {displayLabels.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {displayLabels.map((label) => (
-                      <Badge key={label} variant="secondary">
-                        {label}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
+                {/*{displayLabels.length > 0 && (*/}
+                {/*  <div className="flex flex-wrap gap-2">*/}
+                {/*    {displayLabels.map((label) => (*/}
+                {/*      <Badge key={label} variant="secondary">*/}
+                {/*        {label}*/}
+                {/*      </Badge>*/}
+                {/*    ))}*/}
+                {/*  </div>*/}
+                {/*)}*/}
 
                 {/* Assignees */}
                 {selectedIssue.assignees.length > 0 && (
@@ -1534,7 +1687,11 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
               {/* Actions */}
               <div className="flex gap-2 pt-4">
-                <Button asChild>
+                <Button onClick={handleEditFromDetailView}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  {t.edit}
+                </Button>
+                <Button asChild variant="outline">
                   <a href={selectedIssue.web_url} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4 mr-2" />
                     {t.viewInGitlab}
@@ -1757,46 +1914,22 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         </div>
       </div>
 
-      <DragOverlay>
-        {activeIssue ? (
-          <Card className="cursor-grabbing shadow-lg rotate-3">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline" className="text-xs font-mono">
-                      #{activeIssue.iid}
-                    </Badge>
-                  </div>
-                  <CardTitle className="text-sm font-medium leading-tight">{activeIssue.title}</CardTitle>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {activeIssue.description && (
-                <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                  {activeIssue.description.replace(/[#*`]/g, "").substring(0, 100)}...
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
-      </DragOverlay>
-
       {/* Modals */}
-      {selectedIssue && <IssueModal />}
-      <NewIssueModal
-        isOpen={showNewIssueModal}
-        onClose={handleCloseNewIssueModal}
-        onSubmit={handleCreateIssue}
-        form={newIssueForm}
-        setForm={setNewIssueForm}
+      {selectedIssue && <IssueDetailModal />}
+      <IssueModal
+        isOpen={showIssueModal}
+        onClose={handleCloseIssueModal}
+        onSubmit={handleSubmitIssue}
+        form={issueForm}
+        setForm={setIssueForm}
         allAssigneesWithIds={allAssigneesWithIds}
         allNonStatusLabels={allNonStatusLabels}
         availableColumns={availableColumns}
-        isCreating={creatingIssue}
+        isSubmitting={submittingIssue}
         t={t}
         language={language}
+        mode={issueModalMode}
+        issue={editingIssue}
       />
       <DeleteIssueDialog />
     </DndContext>
