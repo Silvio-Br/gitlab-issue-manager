@@ -283,7 +283,28 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       if (!over) return
 
       const issueId = Number.parseInt(active.id as string)
-      const newColumnId = over.id as string
+
+      // Correction: détecter si over.id est un ticket ou une colonne
+      let newColumnId: string
+
+      // Vérifier si over.id est un ID de colonne
+      const isColumn = columns.some((col) => col.id === over.id)
+
+      if (isColumn) {
+        // C'est une colonne
+        newColumnId = over.id as string
+      } else {
+        // C'est probablement un ticket, trouver sa colonne
+        const targetIssueId = Number.parseInt(over.id as string)
+        const targetIssue = issues.find((issue) => issue.id === targetIssueId)
+
+        if (targetIssue) {
+          newColumnId = getIssueColumn(targetIssue, kanbanConfig)
+        } else {
+          // Fallback: essayer de trouver la colonne par l'ID
+          newColumnId = over.id as string
+        }
+      }
 
       const issue = issues.find((i) => i.id === issueId)
       if (!issue) return
@@ -295,6 +316,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       const currentColumnId = getIssueColumn(issue, kanbanConfig)
       if (currentColumnId === newColumnId) return // No change
 
+      // Le reste du code reste identique...
       // Prepare new labels
       const statusLabels = kanbanConfig.columns.flatMap((col) => col.labels)
       const updatedLabels = issue.labels.filter(
@@ -939,28 +961,28 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                         <SelectValue placeholder={t.selectAssignee}>
                           {newIssueForm.assignee_id
                             ? (() => {
-                                const assignee = allAssigneesWithIds.find((a) => a.id === newIssueForm.assignee_id)
-                                return assignee ? (
-                                  <div className="flex items-center gap-2">
-                                    <Avatar className="w-6 h-6">
-                                      <AvatarImage
-                                        src={assignee.avatar_url || "/placeholder.svg"}
-                                        alt={assignee.name}
-                                      />
-                                      <AvatarFallback className="text-xs">
-                                        {assignee.name
-                                          .split(" ")
-                                          .map((n: any[]) => n[0])
-                                          .join("")
-                                          .substring(0, 2)}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <span>{assignee.name}</span>
-                                  </div>
-                                ) : (
-                                  t.selectAssignee
-                                )
-                              })()
+                              const assignee = allAssigneesWithIds.find((a) => a.id === newIssueForm.assignee_id)
+                              return assignee ? (
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="w-6 h-6">
+                                    <AvatarImage
+                                      src={assignee.avatar_url || "/placeholder.svg"}
+                                      alt={assignee.name}
+                                    />
+                                    <AvatarFallback className="text-xs">
+                                      {assignee.name
+                                        .split(" ")
+                                        .map((n: any[]) => n[0])
+                                        .join("")
+                                        .substring(0, 2)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span>{assignee.name}</span>
+                                </div>
+                              ) : (
+                                t.selectAssignee
+                              )
+                            })()
                             : t.selectAssignee}
                         </SelectValue>
                       </SelectTrigger>
