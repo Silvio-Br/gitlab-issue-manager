@@ -91,7 +91,7 @@ jobs:
           tags: |
             type=ref,event=tag,suffix=-staging
             type=raw,value=staging-latest
-            type=sha,prefix={{branch}}-,suffix=-staging
+            type=sha,suffix=-staging
 
       - name: 🔧 Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -110,4 +110,3 @@ jobs:
           build-args: |
             NODE_VERSION=${{ env.NODE_VERSION }}
             PNPM_VERSION=${{ env.PNPM_VERSION }}
-            BUILD_ENV=staging
