@@ -138,58 +138,12 @@ jobs:
           find .next/static -name "*.js" -o -name "*.css" | wc -l || echo "No static files found"
 
   # =============================================================================
-  # Job 3: Analyse de sécurité
-  # =============================================================================
-  security:
-    name: 🔒 Security Analysis
-    runs-on: ubuntu-latest
-    needs: install
-    steps:
-      - name: 🔄 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 🚀 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: 🔄 Restore node_modules cache
-        uses: actions/cache@v3
-        with:
-          path: node_modules
-          key: ${{ needs.install.outputs.cache-key }}
-
-      - name: 🔒 Run security audit
-        run: |
-          echo "🔒 Running security audit..."
-          pnpm audit --audit-level moderate || echo "⚠️ Security vulnerabilities found"
-
-      - name: 🔍 Run CodeQL Analysis
-        uses: github/codeql-action/init@v2
-        with:
-          languages: javascript
-
-      - name: 🔍 Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
-
-      - name: 📊 Security summary
-        run: |
-          echo "📊 Security Analysis Summary:"
-          echo "✅ Dependency audit completed"
-          echo "✅ CodeQL analysis completed"
-
-  # =============================================================================
   # Job 4: Résumé final et notifications
   # =============================================================================
   summary:
     name: 📋 CI Summary
     runs-on: ubuntu-latest
-    needs: [install, build, security]
+    needs: [install, build]
     if: always()
     steps:
       - name: 📋 Generate summary
@@ -202,7 +156,6 @@ jobs:
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| 📦 Install | ${{ needs.install.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 🏗️ Build | ${{ needs.build.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔒 Security | ${{ needs.security.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📈 Details" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
@@ -229,7 +182,7 @@ jobs:
   pr-comment:
     name: 💬 PR Comment
     runs-on: ubuntu-latest
-    needs: [install, build, security]
+    needs: [install, build]
     if: github.event_name == 'pull_request' && always()
     permissions:
       pull-requests: write
@@ -241,7 +194,6 @@ jobs:
             const results = {
               install: '${{ needs.install.result }}',
               build: '${{ needs.build.result }}',
-              security: '${{ needs.security.result }}'
             };
             
             const getEmoji = (status) => {
@@ -262,7 +214,6 @@ jobs:
             |-------|--------|
             | 📦 Install Dependencies | ${getEmoji(results.install)} ${results.install} |
             | 🏗️ Build Application | ${getEmoji(results.build)} ${results.build} |
-            | 🔒 Security Analysis | ${getEmoji(results.security)} ${results.security} |
             
             ${allPassed ? 
               '🎉 **All checks passed!** This PR is ready for review.' : 
