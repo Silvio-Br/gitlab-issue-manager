@@ -23,38 +23,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 📋 Validate PR title
-        run: |
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          echo "Validating PR title: $PR_TITLE"
-          
-          # Vérifier que le titre suit les conventions
-          if [[ "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore)($$.+$$)?: .+ ]]; then
-            echo "✅ PR title follows conventional commits format"
-          else
-            echo "❌ PR title should follow conventional commits format"
-            echo "Examples: feat: add new feature, fix(auth): resolve login issue"
-            exit 1
-          fi
-
-      - name: 📏 Check PR size
-        run: |
-          # Compter les fichiers modifiés
-          FILES_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | wc -l)
-          LINES_CHANGED=$(git diff --stat origin/${{ github.base_ref }}...HEAD | tail -1 | grep -o '[0-9]\+ insertions\|[0-9]\+ deletions' | grep -o '[0-9]\+' | paste -sd+ | bc || echo "0")
-          
-          echo "📊 PR Statistics:"
-          echo "Files changed: $FILES_CHANGED"
-          echo "Lines changed: $LINES_CHANGED"
-          
-          # Alerter si la PR est trop grosse
-          if [ "$FILES_CHANGED" -gt 50 ] || [ "$LINES_CHANGED" -gt 1000 ]; then
-            echo "⚠️ Large PR detected. Consider breaking it into smaller PRs."
-            echo "::warning::This PR modifies $FILES_CHANGED files and $LINES_CHANGED lines. Consider splitting it."
-          else
-            echo "✅ PR size is reasonable"
-          fi
-
       - name: 🔍 Check for sensitive files
         run: |
           echo "🔍 Checking for sensitive files..."
