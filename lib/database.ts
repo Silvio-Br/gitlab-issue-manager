@@ -24,9 +24,9 @@ interface UserSettings {
   language: string
   theme: string
   kanbanSettings: {
-    ticketsPerColumn: number
-    autoRefresh: boolean
-    refreshInterval: number
+    ticketsPerColumn?: number
+    autoRefresh?: boolean
+    refreshInterval?: number
   }
   updatedAt: Date
 }

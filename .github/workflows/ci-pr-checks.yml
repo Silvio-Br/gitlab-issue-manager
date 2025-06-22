@@ -1,0 +1,173 @@
+name: 🔍 PR Quality Checks
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9'
+
+jobs:
+  # =============================================================================
+  # Vérifications spécifiques aux Pull Requests
+  # =============================================================================
+  pr-validation:
+    name: 🔍 PR Validation
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: 🔄 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Check for sensitive files
+        run: |
+          echo "🔍 Checking for sensitive files..."
+          SENSITIVE_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.(env|key|pem|p12|pfx)$' || true)
+          
+          if [ -n "$SENSITIVE_FILES" ]; then
+            echo "❌ Sensitive files detected:"
+            echo "$SENSITIVE_FILES"
+            echo "::error::Sensitive files should not be committed"
+            exit 1
+          else
+            echo "✅ No sensitive files detected"
+          fi
+
+      - name: 📝 Check for TODO/FIXME
+        run: |
+          echo "📝 Checking for TODO/FIXME comments..."
+          TODO_COUNT=$(git diff origin/${{ github.base_ref }}...HEAD | grep -c "TODO\|FIXME" || echo "0")
+          
+          if [ "$TODO_COUNT" -gt 0 ]; then
+            echo "⚠️ Found $TODO_COUNT TODO/FIXME comments in this PR"
+            echo "::warning::Consider addressing TODO/FIXME comments before merging"
+          else
+            echo "✅ No TODO/FIXME comments found"
+          fi
+
+  # =============================================================================
+  # Tests de compatibilité multi-environnements
+  # =============================================================================
+  compatibility:
+    name: 🌐 Compatibility Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: ['22']
+      fail-fast: false
+    steps:
+      - name: 🔄 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: 📥 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Test build
+        run: pnpm build
+
+      - name: 📊 Report compatibility
+        run: |
+          echo "✅ Compatible with Node.js ${{ matrix.node-version }} on ${{ matrix.os }}"
+
+  # =============================================================================
+  # Analyse des performances
+  # =============================================================================
+  performance:
+    name: ⚡ Performance Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔄 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: 📥 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build for analysis
+        run: pnpm build
+
+      - name: 📊 Bundle analysis
+        run: |
+          echo "📊 Analyzing bundle size..."
+          
+          # Analyser la taille des bundles
+          if [ -d ".next" ]; then
+            echo "Next.js build analysis:"
+            find .next -name "*.js" -type f -exec ls -lh {} \; | head -10
+          
+            # Calculer la taille totale
+            TOTAL_SIZE=$(find .next -name "*.js" -type f -exec stat -c%s {} \; | awk '{sum+=$1} END {print sum}')
+            TOTAL_SIZE_MB=$((TOTAL_SIZE / 1024 / 1024))
+          
+            echo "Total bundle size: ${TOTAL_SIZE_MB}MB"
+          
+            if [ "$TOTAL_SIZE_MB" -gt 10 ]; then
+              echo "⚠️ Bundle size is large (${TOTAL_SIZE_MB}MB). Consider optimization."
+              echo "::warning::Bundle size is ${TOTAL_SIZE_MB}MB"
+            else
+              echo "✅ Bundle size is acceptable (${TOTAL_SIZE_MB}MB)"
+            fi
+          fi
+
+  # =============================================================================
+  # Vérification des dépendances
+  # =============================================================================
+  dependencies:
+    name: 📦 Dependencies Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔄 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: 📊 Check for outdated dependencies
+        run: |
+          echo "📊 Checking for outdated dependencies..."
+          pnpm outdated || echo "Some dependencies are outdated"
+
+      - name: 🔍 Check for unused dependencies
+        run: |
+          echo "🔍 Installing depcheck..."
+          npm install -g depcheck
+          
+          echo "Checking for unused dependencies..."
+          depcheck --json | jq '.dependencies' || echo "No unused dependencies found"
+
+      - name: 📈 Dependencies summary
+        run: |
+          echo "📈 Dependencies Summary:"
+          echo "Total packages: $(jq '.dependencies | length' package.json)"
+          echo "Dev packages: $(jq '.devDependencies | length' package.json)"

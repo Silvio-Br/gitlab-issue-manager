@@ -130,9 +130,9 @@ class StorageService {
   }
 
   async getKanbanSettings(): Promise<{
-    ticketsPerColumn: number
-    autoRefresh: boolean
-    refreshInterval: number
+    ticketsPerColumn?: number
+    autoRefresh?: boolean
+    refreshInterval?: number
   }> {
     await this.init()
     const settings = await db.getUserSettings()

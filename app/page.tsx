@@ -51,7 +51,7 @@ export default function ConfigurationPage() {
         setIsValid(false)
         alert("Connection error. Check your token and URL.")
       }
-    } catch (error) {
+    } catch (_) {
       setIsValid(false)
       alert("Connection error. Check your GitLab URL.")
     } finally {

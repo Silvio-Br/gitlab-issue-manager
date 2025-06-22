@@ -22,7 +22,7 @@ export default function ProjectsPage() {
   const router = useRouter()
   const { t } = useLanguage()
   const { config: gitlabConfig, loading: configLoading } = useGitLabConfig()
-  const { selectedProjects, allProjects, addProjects, updateProjectSelection, addProject, removeProject } =
+  const { selectedProjects, addProject, removeProject } =
     useProjects()
 
   const gitlabApi = useMemo(() => {
@@ -198,7 +198,7 @@ export default function ProjectsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-lg font-medium leading-tight flex items-center gap-2">
-                        <Checkbox checked={isSelected} readOnly />
+                        <Checkbox checked={isSelected} />
                         {project.name}
                       </CardTitle>
                       <p className="text-sm text-gray-500 mt-1">{project.name_with_namespace}</p>
