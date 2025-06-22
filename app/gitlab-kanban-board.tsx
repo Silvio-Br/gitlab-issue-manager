@@ -242,7 +242,7 @@ function NewIssueModal({
                   id="title"
                   value={form.title}
                   onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="Titre de l'issue..."
+                  placeholder={t.issueTitlePlaceholder}
                   required
                 />
               </div>
@@ -254,7 +254,7 @@ function NewIssueModal({
                   id="description"
                   value={form.description}
                   onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                  placeholder="Description de l'issue (Markdown supporté)..."
+                  placeholder={t.issueDescriptionPlaceholder}
                   rows={6}
                 />
               </div>
@@ -1592,7 +1592,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="h-10">
                       <Filter className="w-4 h-4 mr-2" />
                       {t.labels}
                       {selectedLabels.length > 0 && (

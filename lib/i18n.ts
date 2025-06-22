@@ -68,6 +68,10 @@ export interface Translations {
   selectStartDate: string
   selectDueDate: string
 
+  // Placeholders
+  issueTitlePlaceholder: string
+  issueDescriptionPlaceholder: string
+
   // States
   todo: string
   inProgress: string
@@ -207,6 +211,10 @@ export const translations: Record<Language, Translations> = {
     selectStartDate: "Select start date...",
     selectDueDate: "Select due date...",
 
+    // Placeholders
+    issueTitlePlaceholder: "Issue title...",
+    issueDescriptionPlaceholder: "Issue description (Markdown supported)...",
+
     // States
     todo: "To Do",
     inProgress: "In Progress",
@@ -343,6 +351,10 @@ export const translations: Record<Language, Translations> = {
     dueDate: "Date d'échéance",
     selectStartDate: "Sélectionner la date de début...",
     selectDueDate: "Sélectionner la date d'échéance...",
+
+    // Placeholders
+    issueTitlePlaceholder: "Titre de l'issue...",
+    issueDescriptionPlaceholder: "Description de l'issue (Markdown supporté)...",
 
     // States
     todo: "À faire",
