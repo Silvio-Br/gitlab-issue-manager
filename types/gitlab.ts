@@ -40,6 +40,7 @@ export interface GitLabLabel {
 
 export interface GitLabProject {
   id: number
+  avatar_url: string
   name: string
   description: string
   web_url: string

@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useMemo, useEffect, useCallback } from "react"
-import { Plus, Search, Filter, AlertCircle } from "lucide-react"
+import { Plus, Search, Filter, AlertCircle, GitlabIcon } from "lucide-react"
 import { DndContext, closestCorners, DragOverlay } from "@dnd-kit/core"
 import { type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { format } from "date-fns"
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,7 @@ interface GitLabKanbanBoardProps {
   projectId: string
   gitlabToken?: string
   gitlabUrl?: string
+  onRefreshReady?: (refreshFn: () => Promise<void>) => void
 }
 
 interface IssueForm {
@@ -64,7 +66,12 @@ interface KanbanColumnData {
 
 const TICKETS_PER_COLUMN = 10
 
-export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }: GitLabKanbanBoardProps) {
+export default function GitLabKanbanBoard({
+                                            projectId,
+                                            gitlabToken,
+                                            gitlabUrl,
+                                            onRefreshReady,
+                                          }: GitLabKanbanBoardProps) {
   // State management
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
@@ -198,6 +205,11 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         }))
 
         setColumns(configColumns)
+
+        // Provide refresh function to parent
+        if (onRefreshReady) {
+          onRefreshReady(loadProjectData)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : t.error)
       } finally {
@@ -208,7 +220,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     if (projectId) {
       loadProjectData()
     }
-  }, [projectId, gitlabApi, t.error])
+  }, [projectId, gitlabApi, t.error, onRefreshReady])
 
   // Get all status labels (from columns)
   const statusLabels = useMemo(() => {
@@ -567,16 +579,16 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
             prev.map((issue) =>
               issue.id === editingIssue.id
                 ? {
-                  ...issue,
-                  title: issueForm.title,
-                  description: issueForm.description,
-                  labels: finalLabels,
-                  assignees: issueForm.assignee_id
-                    ? allAssigneesWithIds.filter((a) => a.id === issueForm.assignee_id)
-                    : [],
-                  due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : null,
-                  start_date: newStartDate,
-                }
+                    ...issue,
+                    title: issueForm.title,
+                    description: issueForm.description,
+                    labels: finalLabels,
+                    assignees: issueForm.assignee_id
+                      ? allAssigneesWithIds.filter((a) => a.id === issueForm.assignee_id)
+                      : [],
+                    due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : null,
+                    start_date: newStartDate,
+                  }
                 : issue,
             ),
           )
@@ -702,7 +714,15 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
+                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                  <Avatar className="w-8 h-8 rounded-lg">
+                    <AvatarImage src={project?.avatar_url || "/placeholder.svg"} alt={project?.name} />
+                    <AvatarFallback className="rounded-lg">
+                      <GitlabIcon className="w-5 h-5 text-orange-500" />
+                    </AvatarFallback>
+                  </Avatar>
+                  {project?.name}
+                </h1>
                 <p className="text-gray-600 mt-1">{project?.description}</p>
               </div>
               <Button onClick={handleNewIssueClick}>

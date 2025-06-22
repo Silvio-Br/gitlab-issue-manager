@@ -28,13 +28,13 @@ interface IssueDetailModalProps {
 }
 
 export function IssueDetailModal({
-                                   issue,
-                                   columns,
-                                   onClose,
-                                   onEdit,
-                                   customLinkComponent: CustomLink,
-                                   customImageComponent: CustomImage,
-                                 }: IssueDetailModalProps) {
+  issue,
+  columns,
+  onClose,
+  onEdit,
+  customLinkComponent: CustomLink,
+  customImageComponent: CustomImage,
+}: IssueDetailModalProps) {
   const { t, language } = useLanguage()
 
   if (!issue) return null
@@ -173,8 +173,8 @@ export function IssueDetailModal({
 
             <Separator />
 
-            {/* Comments */}
-            <CollapsibleComments issue={issue} />
+            {/* Comments - Only load when modal is open */}
+            <CollapsibleComments issue={issue} isVisible={!!issue} />
 
             {/* Actions */}
             <div className="flex gap-2 pt-4">
