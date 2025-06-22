@@ -112,7 +112,7 @@ export default function ConfigurationPage() {
               }}
             />
             <p className="text-xs text-gray-500 mt-1">
-              Pour les instances GitLab auto-hébergées (ex: https://gitlab.intech.dev)
+              Pour les instances GitLab auto-hébergées (ex: https://my.gitlab.com)
             </p>
           </div>
 

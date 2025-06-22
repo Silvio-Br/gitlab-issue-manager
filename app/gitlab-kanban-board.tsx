@@ -4,34 +4,35 @@ import type React from "react"
 
 import { useState, useMemo, useEffect, useCallback } from "react"
 import {
-  Search,
-  Filter,
   Plus,
   MoreHorizontal,
   Calendar,
   ExternalLink,
-  AlertCircle,
   MessageSquare,
   User,
   Clock,
   Loader2,
   ChevronDown,
   ChevronRight,
+  X,
+  Trash2,
+  CalendarDays,
 } from "lucide-react"
+import { Search, Filter, AlertCircle } from "lucide-react"
+import { DndContext, closestCorners, DragOverlay } from "@dnd-kit/core"
 import {
-  DndContext,
   type DragEndEvent,
   type DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
   useDroppable,
 } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { DragOverlay } from "@dnd-kit/core"
 import ReactMarkdown from "react-markdown"
+import { format } from "date-fns"
+import { fr, enUS } from "date-fns/locale"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,13 +42,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -55,7 +56,18 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Checkbox } from "@/components/ui/checkbox"
+import { AlertDialog, AlertDialogContent } from "@/components/ui/alert-dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 import { GitLabAPI } from "@/lib/gitlab-api"
 import type { GitLabIssue, GitLabProject } from "@/types/gitlab"
@@ -95,11 +107,394 @@ interface GitLabKanbanBoardProps {
 interface NewIssueForm {
   title: string
   description: string
-  labels: string[]
+  status: string // ID de la colonne
+  labels: string[] // Labels non-statut
   assignee_id: number | null
+  start_date: Date | null
+  due_date: Date | null
 }
 
 const TICKETS_PER_COLUMN = 10
+
+// Ajouter cette interface avant le composant principal
+interface NewIssueModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onSubmit: (e: React.FormEvent) => Promise<void>
+  form: NewIssueForm
+  setForm: React.Dispatch<React.SetStateAction<NewIssueForm>>
+  allAssigneesWithIds: any[]
+  allNonStatusLabels: string[]
+  availableColumns: KanbanColumnConfig[]
+  isCreating: boolean
+  t: any
+  language: string
+}
+
+// Définir NewIssueModal comme composant séparé avant GitLabKanbanBoard
+function NewIssueModal({
+                         isOpen,
+                         onClose,
+                         onSubmit,
+                         form,
+                         setForm,
+                         allAssigneesWithIds,
+                         allNonStatusLabels,
+                         availableColumns,
+                         isCreating,
+                         t,
+                         language,
+                       }: NewIssueModalProps) {
+  const [customLabelInput, setCustomLabelInput] = useState("")
+  const [showCustomLabelInput, setShowCustomLabelInput] = useState(false)
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            {t.newIssue}
+          </DialogTitle>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1 overflow-y-auto">
+          <form onSubmit={onSubmit} className="px-1">
+            <div className="space-y-6 pr-3 pb-4">
+              {/* Title */}
+              <div className="space-y-2">
+                <Label htmlFor="title">{t.issueTitle_}</Label>
+                <Input
+                  id="title"
+                  value={form.title}
+                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="Titre de l'issue..."
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="description">{t.issueDescription_}</Label>
+                <Textarea
+                  id="description"
+                  value={form.description}
+                  onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="Description de l'issue (Markdown supporté)..."
+                  rows={6}
+                />
+              </div>
+
+              {/* Status (Column) */}
+              <div className="space-y-2">
+                <Label>Statut</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(value) => {
+                    setForm((prev) => ({ ...prev, status: value }))
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un statut">
+                      {form.status
+                        ? (() => {
+                          const column = availableColumns.find((col) => col.id === form.status)
+                          return column ? (
+                            <div className="flex items-center gap-2">
+                              {column.emoji && <span>{column.emoji}</span>}
+                              <span>{column.name}</span>
+                            </div>
+                          ) : (
+                            "Sélectionner un statut"
+                          )
+                        })()
+                        : "Sélectionner un statut"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableColumns.map((column) => (
+                      <SelectItem key={column.id} value={column.id}>
+                        <div className="flex items-center gap-2">
+                          {column.emoji && <span>{column.emoji}</span>}
+                          <span>{column.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Start Date */}
+                <div className="space-y-2">
+                  <Label>{t.startDate}</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {form.start_date ? (
+                          format(form.start_date, "PPP", { locale: language === "fr" ? fr : enUS })
+                        ) : (
+                          <span className="text-muted-foreground">{t.selectStartDate}</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={form.start_date || undefined}
+                        onSelect={(date) => setForm((prev) => ({ ...prev, start_date: date || null }))}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Due Date */}
+                <div className="space-y-2">
+                  <Label>{t.dueDate}</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {form.due_date ? (
+                          format(form.due_date, "PPP", { locale: language === "fr" ? fr : enUS })
+                        ) : (
+                          <span className="text-muted-foreground">{t.selectDueDate}</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={form.due_date || undefined}
+                        onSelect={(date) => setForm((prev) => ({ ...prev, due_date: date || null }))}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Other Labels */}
+              {(allNonStatusLabels.length > 0 || showCustomLabelInput) && (
+                <div className="space-y-2">
+                  <Label>Labels</Label>
+
+                  {/* Selected labels */}
+                  {form.labels.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {form.labels.map((label) => (
+                        <Badge key={label} variant="secondary" className="text-xs flex items-center gap-1">
+                          {label}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto p-0 w-4 h-4 hover:bg-transparent"
+                            onClick={() => {
+                              setForm((prev) => ({
+                                ...prev,
+                                labels: prev.labels.filter((l) => l !== label),
+                              }))
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Custom label input */}
+                  {showCustomLabelInput && (
+                    <div className="flex gap-2 mb-2 items-center">
+                      <Input
+                        placeholder={t.newLabelPlaceholder}
+                        value={customLabelInput}
+                        onChange={(e) => setCustomLabelInput(e.target.value)}
+                        className="flex-1"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault()
+                            if (customLabelInput.trim() && !form.labels.includes(customLabelInput.trim())) {
+                              setForm((prev) => ({
+                                ...prev,
+                                labels: [...prev.labels, customLabelInput.trim()],
+                              }))
+                              setCustomLabelInput("")
+                              setShowCustomLabelInput(false)
+                            }
+                          }
+                          if (e.key === "Escape") {
+                            setCustomLabelInput("")
+                            setShowCustomLabelInput(false)
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          if (customLabelInput.trim() && !form.labels.includes(customLabelInput.trim())) {
+                            setForm((prev) => ({
+                              ...prev,
+                              labels: [...prev.labels, customLabelInput.trim()],
+                            }))
+                            setCustomLabelInput("")
+                            setShowCustomLabelInput(false)
+                          }
+                        }}
+                      >
+                        {t.save}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setCustomLabelInput("")
+                          setShowCustomLabelInput(false)
+                        }}
+                      >
+                        {t.cancel}
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 items-center">
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        if (value && !form.labels.includes(value)) {
+                          setForm((prev) => ({
+                            ...prev,
+                            labels: [...prev.labels, value],
+                          }))
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder={t.addLabel} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allNonStatusLabels
+                          .filter((label) => !form.labels.includes(label))
+                          .map((label) => (
+                            <SelectItem key={label} value={label}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        {allNonStatusLabels.filter((label) => !form.labels.includes(label)).length === 0 && (
+                          <div className="px-3 py-2 text-gray-500 text-sm">Tous les labels sont sélectionnés</div>
+                        )}
+                      </SelectContent>
+                    </Select>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCustomLabelInput(true)}
+                      className="whitespace-nowrap flex-shrink-0"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      {t.createNewLabel}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Assignee */}
+              {allAssigneesWithIds.length > 0 && (
+                <div className="space-y-2">
+                  <Label>{t.assignedTo_}</Label>
+                  <Select
+                    value={form.assignee_id?.toString() || "none"}
+                    onValueChange={(value) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        assignee_id: value === "none" ? null : Number.parseInt(value),
+                      }))
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t.selectAssignee}>
+                        {form.assignee_id
+                          ? (() => {
+                            const assignee = allAssigneesWithIds.find((a) => a.id === form.assignee_id)
+                            return assignee ? (
+                              <div className="flex items-center gap-2">
+                                <Avatar className="w-6 h-6">
+                                  <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
+                                  <AvatarFallback className="text-xs">
+                                    {assignee.name
+                                      .split(" ")
+                                      .map((n: any[]) => n[0])
+                                      .join("")
+                                      .substring(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span>{assignee.name}</span>
+                              </div>
+                            ) : (
+                              t.selectAssignee
+                            )
+                          })()
+                          : t.selectAssignee}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t.noAssignee}</SelectItem>
+                      {allAssigneesWithIds.map((assignee) => (
+                        <SelectItem key={assignee.id} value={assignee.id.toString()}>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="w-6 h-6">
+                              <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
+                              <AvatarFallback className="text-xs">
+                                {assignee.name
+                                  .split(" ")
+                                  .map((n: any[]) => n[0])
+                                  .join("")
+                                  .substring(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span>{assignee.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          </form>
+        </ScrollArea>
+
+        {/* Actions en bas, toujours visibles */}
+        <div className="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
+          <Button type="button" variant="outline" onClick={onClose}>
+            {t.cancel}
+          </Button>
+          <Button type="submit" disabled={!form.title.trim() || isCreating} onClick={onSubmit}>
+            {isCreating ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {t.creating}
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-2" />
+                {t.createIssue}
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }: GitLabKanbanBoardProps) {
   const [searchQuery, setSearchQuery] = useState("")
@@ -123,10 +518,19 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   const [newIssueForm, setNewIssueForm] = useState<NewIssueForm>({
     title: "",
     description: "",
+    status: "open", // Statut par défaut
     labels: [],
     assignee_id: null,
+    start_date: null,
+    due_date: null,
   })
   const [creatingIssue, setCreatingIssue] = useState(false)
+  const [customLabelInput, setCustomLabelInput] = useState("")
+  const [showCustomLabelInput, setShowCustomLabelInput] = useState(false)
+
+  // Delete confirmation state
+  const [issueToDelete, setIssueToDelete] = useState<GitLabIssue | null>(null)
+  const [deletingIssue, setDeletingIssue] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +539,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   const [pendingUpdates, setPendingUpdates] = useState<Set<number>>(new Set())
 
   const gitlabApi = useMemo(() => new GitLabAPI(gitlabToken, gitlabUrl), [gitlabToken, gitlabUrl])
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { toast } = useToast()
 
   const sensors = useSensors(
@@ -192,6 +596,35 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       loadProjectData()
     }
   }, [projectId, gitlabApi])
+
+  // Get all status labels (from columns)
+  const statusLabels = useMemo(() => {
+    return kanbanConfig.columns.flatMap((col) => col.labels)
+  }, [])
+
+  // Get all non-status labels
+  const allNonStatusLabels = useMemo(() => {
+    const labelsSet = new Set<string>()
+    issues.forEach((issue) => {
+      issue.labels.forEach((label) => {
+        // Exclure les labels de statut
+        const isStatusLabel = statusLabels.some(
+          (statusLabel) =>
+            label.toLowerCase().includes(statusLabel.toLowerCase()) ||
+            statusLabel.toLowerCase().includes(label.toLowerCase()),
+        )
+        if (!isStatusLabel) {
+          labelsSet.add(label)
+        }
+      })
+    })
+    return Array.from(labelsSet).sort()
+  }, [issues, statusLabels])
+
+  // Get available columns for status selection (exclude closed if creating new issue)
+  const availableColumns = useMemo(() => {
+    return getSortedColumns(kanbanConfig).filter((col) => col.id !== "closed")
+  }, [])
 
   // Filter issues based on search and filters
   const filteredIssues = useMemo(() => {
@@ -383,56 +816,106 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     setShowNewIssueModal(true)
   }
 
-  const handleCloseNewIssueModal = () => {
+  const handleCloseNewIssueModal = useCallback(() => {
     setShowNewIssueModal(false)
     setNewIssueForm({
       title: "",
       description: "",
+      status: "open",
       labels: [],
       assignee_id: null,
+      start_date: null,
+      due_date: null,
     })
-  }
+    setCustomLabelInput("")
+    setShowCustomLabelInput(false)
+  }, [setCustomLabelInput, setShowCustomLabelInput])
 
-  const handleCreateIssue = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleCreateIssue = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
 
-    if (!newIssueForm.title.trim()) {
-      return
-    }
+      if (!newIssueForm.title.trim()) {
+        return
+      }
 
-    try {
-      setCreatingIssue(true)
+      try {
+        setCreatingIssue(true)
 
-      const newIssue = await gitlabApi.createIssue(projectId, {
-        title: newIssueForm.title,
-        description: newIssueForm.description || undefined,
-        labels: newIssueForm.labels.length > 0 ? newIssueForm.labels : undefined,
-        assignee_ids: newIssueForm.assignee_id ? [newIssueForm.assignee_id] : undefined,
-      })
+        // Construire les labels finaux
+        const finalLabels = [...newIssueForm.labels]
 
-      // Add the new issue to the list
-      // @ts-expect-error
-      setIssues((prev) => [newIssue, ...prev])
+        // Ajouter le label de statut si nécessaire
+        const selectedColumn = availableColumns.find((col) => col.id === newIssueForm.status)
+        if (selectedColumn && selectedColumn.matchCriteria === "labels" && selectedColumn.labels.length > 0) {
+          finalLabels.push(selectedColumn.labels[0])
+        }
 
-      // Close modal and reset form
-      handleCloseNewIssueModal()
+        const newIssue = await gitlabApi.createIssue(projectId, {
+          title: newIssueForm.title,
+          description: newIssueForm.description || undefined,
+          labels: finalLabels.length > 0 ? finalLabels : undefined,
+          assignee_ids: newIssueForm.assignee_id ? [newIssueForm.assignee_id] : undefined,
+          due_date: newIssueForm.due_date ? format(newIssueForm.due_date, "yyyy-MM-dd") : undefined,
+        })
 
-      toast({
-        title: "✅ Issue créée",
-        description: `L'issue #${newIssue.iid} "${newIssue.title}" a été créée avec succès`,
-        variant: "default",
-      })
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Erreur lors de la création de l'issue"
-      toast({
-        title: "❌ Erreur",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setCreatingIssue(false)
-    }
-  }
+        // Add the new issue to the list
+        // @ts-expect-error
+        setIssues((prev) => [newIssue, ...prev])
+
+        // Close modal and reset form
+        handleCloseNewIssueModal()
+
+        toast({
+          title: "✅ Issue créée",
+          description: `L'issue #${newIssue.iid} "${newIssue.title}" a été créée avec succès`,
+          variant: "default",
+        })
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Erreur lors de la création de l'issue"
+        toast({
+          title: "❌ Erreur",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      } finally {
+        setCreatingIssue(false)
+      }
+    },
+    [newIssueForm, gitlabApi, projectId, handleCloseNewIssueModal, toast, availableColumns],
+  )
+
+  const handleDeleteIssue = useCallback(
+    async (issue: GitLabIssue) => {
+      try {
+        setDeletingIssue(true)
+
+        await gitlabApi.deleteIssue(projectId, issue.iid)
+
+        // Remove the issue from the list
+        setIssues((prev) => prev.filter((i) => i.id !== issue.id))
+
+        // Close the delete dialog
+        setIssueToDelete(null)
+
+        toast({
+          title: "✅ Issue supprimée",
+          description: `L'issue #${issue.iid} "${issue.title}" a été supprimée avec succès`,
+          variant: "default",
+        })
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Erreur lors de la suppression de l'issue"
+        toast({
+          title: "❌ Erreur",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      } finally {
+        setDeletingIssue(false)
+      }
+    },
+    [gitlabApi, projectId, toast],
+  )
 
   function SortableIssue({ issue }: { issue: GitLabIssue }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -502,17 +985,36 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" data-dropdown-trigger>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    data-dropdown-trigger
+                    onClick={(e) => {
+                      e.stopPropagation()
+                    }}
+                  >
                     <MoreHorizontal className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuCheckboxItem asChild>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem asChild>
                     <a href={issue.web_url} target="_blank" rel="noopener noreferrer" className="flex items-center">
                       <ExternalLink className="w-4 h-4 mr-2" />
                       {t.viewInGitlab}
                     </a>
-                  </DropdownMenuCheckboxItem>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setIssueToDelete(issue)
+                    }}
+                    className="flex items-center text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    {t.delete}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -540,9 +1042,19 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
             )}
 
             <div className="flex items-center justify-between text-xs text-gray-500">
-              <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                {new Date(issue.created_at).toLocaleDateString("fr-FR")}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  {new Date(issue.created_at).toLocaleDateString("fr-FR")}
+                </div>
+                {issue.due_date && (
+                  <div className="flex items-center gap-1">
+                    <CalendarDays className="w-3 h-3" />
+                    <span className="text-orange-600 font-medium">
+                      {new Date(issue.due_date).toLocaleDateString("fr-FR")}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="flex -space-x-1">
                 {issue.assignees.slice(0, 2).map((assignee) => (
@@ -763,6 +1275,14 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                     <Clock className="w-4 h-4" />
                     <span>{new Date(selectedIssue.created_at).toLocaleDateString("fr-FR")}</span>
                   </div>
+                  {selectedIssue.due_date && (
+                    <div className="flex items-center gap-1">
+                      <CalendarDays className="w-4 h-4" />
+                      <span className="text-orange-600 font-medium">
+                        {t.dueDate}: {new Date(selectedIssue.due_date).toLocaleDateString("fr-FR")}
+                      </span>
+                    </div>
+                  )}
                   <Badge variant="secondary">
                     {(() => {
                       const columnId = getIssueColumn(selectedIssue, kanbanConfig)
@@ -839,201 +1359,53 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     )
   }
 
-  function labelsValue(labels: string[]): string {
-    return labels.length === 0 ? "none" : labels.join("|") // never returns ""
-  }
-
-  function NewIssueModal() {
-    const allLabelsForFilter = useMemo(() => {
-      const labelsSet = new Set<string>()
-      issues.forEach((issue) => issue.labels.forEach((label) => labelsSet.add(label)))
-      return Array.from(labelsSet).sort()
-    }, [issues])
-
+  // Delete confirmation dialog
+  function DeleteIssueDialog() {
     return (
-      <Dialog open={showNewIssueModal} onOpenChange={setShowNewIssueModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5" />
-              {t.newIssue}
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateIssue}>
-            <ScrollArea className="max-h-[calc(90vh-180px)] px-1">
-              <div className="space-y-6 pr-3">
-                {/* Title */}
-                <div className="space-y-2">
-                  <Label htmlFor="title">{t.issueTitle_}</Label>
-                  <Input
-                    id="title"
-                    value={newIssueForm.title}
-                    onChange={(e) => setNewIssueForm((prev) => ({ ...prev, title: e.target.value }))}
-                    placeholder="Titre de l'issue..."
-                    required
-                  />
-                </div>
-
-                {/* Description */}
-                <div className="space-y-2">
-                  <Label htmlFor="description">{t.issueDescription_}</Label>
-                  <Textarea
-                    id="description"
-                    value={newIssueForm.description}
-                    onChange={(e) => setNewIssueForm((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder="Description de l'issue (Markdown supporté)..."
-                    rows={6}
-                  />
-                </div>
-
-                {/* Labels */}
-                {allLabelsForFilter.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>{t.labels}</Label>
-                    <Select
-                      value={labelsValue(newIssueForm.labels)}
-                      onValueChange={(value) => {
-                        if (value === "none") {
-                          setNewIssueForm((prev) => ({ ...prev, labels: [] }))
-                        } else {
-                          setNewIssueForm((prev) => ({ ...prev, labels: value.split("|") }))
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t.selectLabels}>
-                          {newIssueForm.labels.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {newIssueForm.labels.slice(0, 3).map((label) => (
-                                <Badge key={label} variant="secondary" className="text-xs">
-                                  {label}
-                                </Badge>
-                              ))}
-                              {newIssueForm.labels.length > 3 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{newIssueForm.labels.length - 3}
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            t.selectLabels
-                          )}
-                        </SelectValue>
-                      </SelectTrigger>
-
-                      <SelectContent>
-                        <SelectItem value="none">{t.noLabels}</SelectItem>
-
-                        {/* generate an item for each label; clicking toggles its presence */}
-                        {allLabelsForFilter.map((label) => {
-                          const next = newIssueForm.labels.includes(label)
-                            ? newIssueForm.labels.filter((l) => l !== label)
-                            : [...newIssueForm.labels, label]
-                          return (
-                            <SelectItem key={label} value={labelsValue(next)}>
-                              <div className="flex items-center gap-2">
-                                <Checkbox checked={newIssueForm.labels.includes(label)} />
-                                {label}
-                              </div>
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
+      <AlertDialog open={!!issueToDelete} onOpenChange={() => setIssueToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-600" />
+              {t.deleteIssue}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>{t.deleteIssueConfirmation}</p>
+              {issueToDelete && (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" className="font-mono text-xs">
+                      #{issueToDelete.iid}
+                    </Badge>
                   </div>
-                )}
-
-                {/* Assignee */}
-                {allAssigneesWithIds.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>{t.assignedTo_}</Label>
-                    <Select
-                      value={newIssueForm.assignee_id?.toString() || "none"}
-                      onValueChange={(value) => {
-                        setNewIssueForm((prev) => ({
-                          ...prev,
-                          assignee_id: value === "none" ? null : Number.parseInt(value),
-                        }))
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t.selectAssignee}>
-                          {newIssueForm.assignee_id
-                            ? (() => {
-                              const assignee = allAssigneesWithIds.find((a) => a.id === newIssueForm.assignee_id)
-                              return assignee ? (
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="w-6 h-6">
-                                    <AvatarImage
-                                      src={assignee.avatar_url || "/placeholder.svg"}
-                                      alt={assignee.name}
-                                    />
-                                    <AvatarFallback className="text-xs">
-                                      {assignee.name
-                                        .split(" ")
-                                        .map((n: any[]) => n[0])
-                                        .join("")
-                                        .substring(0, 2)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span>{assignee.name}</span>
-                                </div>
-                              ) : (
-                                t.selectAssignee
-                              )
-                            })()
-                            : t.selectAssignee}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">{t.noAssignee}</SelectItem>
-                        {allAssigneesWithIds.map((assignee) => (
-                          <SelectItem key={assignee.id} value={assignee.id.toString()}>
-                            <div className="flex items-center gap-2">
-                              <Avatar className="w-6 h-6">
-                                <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
-                                <AvatarFallback className="text-xs">
-                                  {assignee.name
-                                    .split(" ")
-                                    .map((n: any[]) => n[0])
-                                    .join("")
-                                    .substring(0, 2)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span>{assignee.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-              <Button type="button" variant="outline" onClick={handleCloseNewIssueModal}>
-                {t.cancel}
-              </Button>
-              <Button type="submit" disabled={!newIssueForm.title.trim() || creatingIssue}>
-                {creatingIssue ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {t.creating}
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    {t.createIssue}
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+                  <p className="font-medium text-sm">{issueToDelete.title}</p>
+                </div>
+              )}
+              <p className="text-red-600 text-sm">{t.deleteIssueWarning}</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => issueToDelete && handleDeleteIssue(issueToDelete)}
+              disabled={deletingIssue}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deletingIssue ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {t.deleting}
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  {t.delete}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     )
   }
 
@@ -1230,7 +1602,20 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
       {/* Modals */}
       {selectedIssue && <IssueModal />}
-      <NewIssueModal />
+      <NewIssueModal
+        isOpen={showNewIssueModal}
+        onClose={handleCloseNewIssueModal}
+        onSubmit={handleCreateIssue}
+        form={newIssueForm}
+        setForm={setNewIssueForm}
+        allAssigneesWithIds={allAssigneesWithIds}
+        allNonStatusLabels={allNonStatusLabels}
+        availableColumns={availableColumns}
+        isCreating={creatingIssue}
+        t={t}
+        language={language}
+      />
+      <DeleteIssueDialog />
     </DndContext>
   )
 }

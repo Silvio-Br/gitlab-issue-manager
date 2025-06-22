@@ -182,6 +182,7 @@ export class GitLabAPI {
       labels?: string[]
       assignee_ids?: number[]
       milestone_id?: number | null
+      due_date?: string | null
     },
   ): Promise<GitLabIssue> {
     const url = `${this.baseUrl}/projects/${encodeURIComponent(projectId)}/issues/${issueIid}`
@@ -214,6 +215,7 @@ export class GitLabAPI {
       labels?: string[]
       assignee_ids?: number[]
       milestone_id?: number | null
+      due_date?: string | null
     },
   ): Promise<GitLabIssue> {
     const url = `${this.baseUrl}/projects/${encodeURIComponent(projectId)}/issues`
@@ -236,5 +238,33 @@ export class GitLabAPI {
     }
 
     return response.json()
+  }
+
+  async deleteIssue(projectId: string, issueIid: number): Promise<void> {
+    const url = `${this.baseUrl}/projects/${encodeURIComponent(projectId)}/issues/${issueIid}`
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    }
+
+    if (this.token) {
+      headers["PRIVATE-TOKEN"] = this.token
+    }
+
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers,
+    })
+
+    if (!response.ok) {
+      throw new Error(`GitLab API Error: ${response.status} ${response.statusText}`)
+    }
+  }
+
+  async getProjectLabels(projectId: string): Promise<GitLabLabel[]> {
+    return this.request<GitLabLabel[]>(`/projects/${encodeURIComponent(projectId)}/labels`)
+  }
+
+  async getProjectMembers(projectId: string): Promise<any[]> {
+    return this.request<any[]>(`/projects/${encodeURIComponent(projectId)}/members`)
   }
 }

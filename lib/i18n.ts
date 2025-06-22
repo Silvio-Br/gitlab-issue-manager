@@ -63,6 +63,10 @@ export interface Translations {
   noLabels: string
   noAssignee: string
   creating: string
+  startDate: string
+  dueDate: string
+  selectStartDate: string
+  selectDueDate: string
 
   // States
   todo: string
@@ -106,6 +110,23 @@ export interface Translations {
   language: string
   english: string
   french: string
+
+  // Configuration - nouvelles clés
+  selfHostedGitlabInstance: string
+  tokenInstructions1: string
+  tokenInstructions2: string
+  tokenInstructions3: string
+
+  // Labels
+  newLabelPlaceholder: string
+  addLabel: string
+  createNewLabel: string
+
+  // Delete confirmation
+  deleteIssue: string
+  deleteIssueConfirmation: string
+  deleteIssueWarning: string
+  deleting: string
 }
 
 export const translations: Record<Language, Translations> = {
@@ -172,6 +193,10 @@ export const translations: Record<Language, Translations> = {
     noLabels: "No labels",
     noAssignee: "No assignee",
     creating: "Creating...",
+    startDate: "Start Date",
+    dueDate: "Due Date",
+    selectStartDate: "Select start date...",
+    selectDueDate: "Select due date...",
 
     // States
     todo: "To Do",
@@ -215,6 +240,23 @@ export const translations: Record<Language, Translations> = {
     language: "Language",
     english: "English",
     french: "French",
+
+    // Configuration - nouvelles clés
+    selfHostedGitlabInstance: "For self-hosted GitLab instances (e.g. https://gitlab.intech.dev)",
+    tokenInstructions1: "1. Go to GitLab → Preferences → Access Tokens",
+    tokenInstructions2: "2. Create a new token with scopes:",
+    tokenInstructions3: "3. Copy the full value (starts with",
+
+    // Labels
+    newLabelPlaceholder: "New label name...",
+    addLabel: "Add label...",
+    createNewLabel: "Create",
+
+    // Delete confirmation
+    deleteIssue: "Delete Issue",
+    deleteIssueConfirmation: "Are you sure you want to delete this issue?",
+    deleteIssueWarning: "This action cannot be undone. The issue will be permanently deleted from GitLab.",
+    deleting: "Deleting...",
   },
   fr: {
     // Common
@@ -279,6 +321,10 @@ export const translations: Record<Language, Translations> = {
     noLabels: "Aucun label",
     noAssignee: "Aucun assigné",
     creating: "Création...",
+    startDate: "Date de début",
+    dueDate: "Date d'échéance",
+    selectStartDate: "Sélectionner la date de début...",
+    selectDueDate: "Sélectionner la date d'échéance...",
 
     // States
     todo: "À faire",
@@ -322,5 +368,22 @@ export const translations: Record<Language, Translations> = {
     language: "Langue",
     english: "Anglais",
     french: "Français",
+
+    // Configuration - nouvelles clés
+    selfHostedGitlabInstance: "Pour les instances GitLab auto-hébergées (ex: https://gitlab.intech.dev)",
+    tokenInstructions1: "1. Allez dans GitLab → Préférences → Tokens d'accès",
+    tokenInstructions2: "2. Créez un nouveau token avec les scopes :",
+    tokenInstructions3: "3. Copiez la valeur complète (commence par",
+
+    // Labels
+    newLabelPlaceholder: "Nom du nouveau label...",
+    addLabel: "Ajouter un label...",
+    createNewLabel: "Créer",
+
+    // Delete confirmation
+    deleteIssue: "Supprimer l'issue",
+    deleteIssueConfirmation: "Êtes-vous sûr de vouloir supprimer cette issue ?",
+    deleteIssueWarning: "Cette action ne peut pas être annulée. L'issue sera définitivement supprimée de GitLab.",
+    deleting: "Suppression...",
   },
 }
