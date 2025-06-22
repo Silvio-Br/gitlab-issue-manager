@@ -3,88 +3,38 @@
 import type React from "react"
 
 import { useState, useMemo, useEffect, useCallback } from "react"
-import {
-  Search,
-  Filter,
-  Plus,
-  MoreHorizontal,
-  Calendar,
-  ExternalLink,
-  AlertCircle,
-  MessageSquare,
-  User,
-  Clock,
-  Loader2,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react"
-import {
-  DndContext,
-  type DragEndEvent,
-  type DragStartEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
-  useDroppable,
-} from "@dnd-kit/core"
-import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import { DragOverlay } from "@dnd-kit/core"
-import ReactMarkdown from "react-markdown"
+import { Plus, Search, Filter, AlertCircle } from "lucide-react"
+import { DndContext, closestCorners, DragOverlay } from "@dnd-kit/core"
+import { type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
+import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import { GitLabAPI } from "@/lib/gitlab-api"
 import type { GitLabIssue, GitLabProject } from "@/types/gitlab"
-import { kanbanConfig, getIssueColumn, getSortedColumns, type KanbanColumnConfig } from "@/config/kanban-config"
+import { kanbanConfig, getIssueColumn, getSortedColumns } from "@/config/kanban-config"
 import { useLanguage } from "@/contexts/language-context"
 import { useToast } from "@/hooks/use-toast"
 
-interface KanbanColumn {
-  id: string
-  name: string
-  emoji?: string
-  color: string
-  issues: GitLabIssue[]
-  config: KanbanColumnConfig
-}
-
-interface GitLabComment {
-  id: number
-  body: string
-  author: {
-    id: number
-    name: string
-    username: string
-    avatar_url: string
-  }
-  created_at: string
-  updated_at: string
-  system: boolean
-}
+// Import refactored components
+import { KanbanColumn } from "@/components/kanban/kanban-column"
+import { IssueModal } from "@/components/kanban/issue-modal"
+import { IssueDetailModal } from "@/components/kanban/issue-detail-modal"
+import { DeleteIssueDialog } from "@/components/kanban/delete-issue-dialog"
 
 interface GitLabKanbanBoardProps {
   projectId: string
@@ -92,16 +42,30 @@ interface GitLabKanbanBoardProps {
   gitlabUrl?: string
 }
 
-interface NewIssueForm {
+interface IssueForm {
   title: string
   description: string
+  status: string
   labels: string[]
   assignee_id: number | null
+  start_date: Date | null
+  due_date: Date | null
+}
+
+interface KanbanColumnData {
+  id: string
+  name: string
+  emoji?: string
+  color: string
+  issues: GitLabIssue[]
+  totalIssues: number
+  hasMore: boolean
 }
 
 const TICKETS_PER_COLUMN = 10
 
 export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }: GitLabKanbanBoardProps) {
+  // State management
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedAssignee, setSelectedAssignee] = useState<string>("all")
@@ -109,24 +73,33 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
   const [issues, setIssues] = useState<GitLabIssue[]>([])
   const [project, setProject] = useState<GitLabProject | null>(null)
-  const [columns, setColumns] = useState<KanbanColumn[]>([])
+  const [columns, setColumns] = useState<Array<{ id: string; name: string; emoji?: string; color: string }>>([])
   const [activeIssue, setActiveIssue] = useState<GitLabIssue | null>(null)
 
   // Pagination state for each column
   const [columnLimits, setColumnLimits] = useState<Record<string, number>>({})
 
-  // Modal state
+  // Modal states
   const [selectedIssue, setSelectedIssue] = useState<GitLabIssue | null>(null)
+  const [editingIssue, setEditingIssue] = useState<GitLabIssue | null>(null)
 
-  // New issue modal state
-  const [showNewIssueModal, setShowNewIssueModal] = useState(false)
-  const [newIssueForm, setNewIssueForm] = useState<NewIssueForm>({
+  // Issue modal state (create/edit)
+  const [showIssueModal, setShowIssueModal] = useState(false)
+  const [issueModalMode, setIssueModalMode] = useState<"create" | "edit">("create")
+  const [issueForm, setIssueForm] = useState<IssueForm>({
     title: "",
     description: "",
+    status: "open",
     labels: [],
     assignee_id: null,
+    start_date: null,
+    due_date: null,
   })
-  const [creatingIssue, setCreatingIssue] = useState(false)
+  const [submittingIssue, setSubmittingIssue] = useState(false)
+
+  // Delete confirmation state
+  const [issueToDelete, setIssueToDelete] = useState<GitLabIssue | null>(null)
+  const [deletingIssue, setDeletingIssue] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +108,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   const [pendingUpdates, setPendingUpdates] = useState<Set<number>>(new Set())
 
   const gitlabApi = useMemo(() => new GitLabAPI(gitlabToken, gitlabUrl), [gitlabToken, gitlabUrl])
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { toast } = useToast()
 
   const sensors = useSensors(
@@ -144,6 +117,52 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         distance: 8,
       },
     }),
+  )
+
+  // Custom link and image components for ReactMarkdown
+  const CustomLink = useCallback(
+    ({ href, children, ...props }: any) => {
+      let finalHref = href
+
+      // Transform relative /uploads/ URLs
+      if (href && href.startsWith("/uploads/") && gitlabUrl && projectId) {
+        finalHref = `${gitlabUrl}/-/project/${projectId}${href}`
+      }
+
+      return (
+        <a
+          href={finalHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline"
+          {...props}
+        >
+          {children}
+        </a>
+      )
+    },
+    [gitlabUrl, projectId],
+  )
+
+  const CustomImage = useCallback(
+    ({ src, alt, ...props }: any) => {
+      let finalSrc = src
+
+      // Transform relative /uploads/ URLs
+      if (src && src.startsWith("/uploads/") && gitlabUrl && projectId) {
+        finalSrc = `${gitlabUrl}/-/project/${projectId}${src}`
+      }
+
+      return (
+        <img
+          src={finalSrc || "/placeholder.svg"}
+          alt={alt}
+          className="max-w-full h-auto rounded-lg border"
+          {...props}
+        />
+      )
+    },
+    [gitlabUrl, projectId],
   )
 
   // Initialize column limits
@@ -168,7 +187,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         ])
 
         setProject(projectData)
-        // @ts-expect-error
+        // @ts-expect-error - API response type mismatch
         setIssues(issuesData)
 
         const configColumns = getSortedColumns(kanbanConfig).map((columnConfig) => ({
@@ -176,13 +195,11 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           name: columnConfig.name,
           emoji: columnConfig.emoji,
           color: columnConfig.color,
-          issues: [],
-          config: columnConfig,
         }))
 
         setColumns(configColumns)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Erreur lors du chargement des données")
+        setError(err instanceof Error ? err.message : t.error)
       } finally {
         setLoading(false)
       }
@@ -191,7 +208,36 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     if (projectId) {
       loadProjectData()
     }
-  }, [projectId, gitlabApi])
+  }, [projectId, gitlabApi, t.error])
+
+  // Get all status labels (from columns)
+  const statusLabels = useMemo(() => {
+    return kanbanConfig.columns.flatMap((col) => col.labels)
+  }, [])
+
+  // Get all non-status labels
+  const allNonStatusLabels = useMemo(() => {
+    const labelsSet = new Set<string>()
+    issues.forEach((issue) => {
+      issue.labels.forEach((label) => {
+        // Exclude status labels
+        const isStatusLabel = statusLabels.some(
+          (statusLabel) =>
+            label.toLowerCase().includes(statusLabel.toLowerCase()) ||
+            statusLabel.toLowerCase().includes(label.toLowerCase()),
+        )
+        if (!isStatusLabel) {
+          labelsSet.add(label)
+        }
+      })
+    })
+    return Array.from(labelsSet).sort()
+  }, [issues, statusLabels])
+
+  // Get available columns for status selection
+  const availableColumns = useMemo(() => {
+    return getSortedColumns(kanbanConfig)
+  }, [])
 
   // Filter issues based on search and filters
   const filteredIssues = useMemo(() => {
@@ -248,6 +294,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     return Array.from(assigneesMap.values())
   }, [issues])
 
+  // Event handlers
   const handleLabelFilter = (label: string, checked: boolean) => {
     if (checked) {
       setSelectedLabels((prev) => [...prev, label])
@@ -263,10 +310,21 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   }
 
   const handleLoadMore = (columnId: string) => {
+    // Save current scroll position of the column
+    const columnElement = document.querySelector(`[data-column-id="${columnId}"] .overflow-y-auto`)
+    const currentScrollTop = columnElement?.scrollTop || 0
+
     setColumnLimits((prev) => ({
       ...prev,
       [columnId]: (prev[columnId] || TICKETS_PER_COLUMN) + TICKETS_PER_COLUMN,
     }))
+
+    // Restore scroll position after re-render
+    setTimeout(() => {
+      if (columnElement) {
+        columnElement.scrollTop = currentScrollTop
+      }
+    }, 0)
   }
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -284,24 +342,24 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
       const issueId = Number.parseInt(active.id as string)
 
-      // Correction: détecter si over.id est un ticket ou une colonne
+      // Detect if over.id is a ticket or a column
       let newColumnId: string
 
-      // Vérifier si over.id est un ID de colonne
+      // Check if over.id is a column ID
       const isColumn = columns.some((col) => col.id === over.id)
 
       if (isColumn) {
-        // C'est une colonne
+        // It's a column
         newColumnId = over.id as string
       } else {
-        // C'est probablement un ticket, trouver sa colonne
+        // It's probably a ticket, find its column
         const targetIssueId = Number.parseInt(over.id as string)
         const targetIssue = issues.find((issue) => issue.id === targetIssueId)
 
         if (targetIssue) {
           newColumnId = getIssueColumn(targetIssue, kanbanConfig)
         } else {
-          // Fallback: essayer de trouver la colonne par l'ID
+          // Fallback: try to find column by ID
           newColumnId = over.id as string
         }
       }
@@ -309,14 +367,13 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       const issue = issues.find((i) => i.id === issueId)
       if (!issue) return
 
-      const newColumn = columns.find((col) => col.id === newColumnId)
+      const newColumn = availableColumns.find((col) => col.id === newColumnId)
       if (!newColumn) return
 
       // Get current column for rollback
       const currentColumnId = getIssueColumn(issue, kanbanConfig)
       if (currentColumnId === newColumnId) return // No change
 
-      // Le reste du code reste identique...
       // Prepare new labels
       const statusLabels = kanbanConfig.columns.flatMap((col) => col.labels)
       const updatedLabels = issue.labels.filter(
@@ -328,8 +385,8 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           ),
       )
 
-      if (newColumn.config.matchCriteria === "labels" && newColumn.config.labels.length > 0) {
-        updatedLabels.push(newColumn.config.labels[0])
+      if (newColumn.matchCriteria === "labels" && newColumn.labels.length > 0) {
+        updatedLabels.push(newColumn.labels[0])
       }
 
       // Optimistic update
@@ -350,8 +407,8 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         })
 
         toast({
-          title: "✅ Ticket déplacé",
-          description: `Le ticket #${issue.iid} a été déplacé vers "${newColumn.name}"`,
+          title: "✅ " + t.success,
+          description: `${t.ticketMoved} #${issue.iid} ${t.movedTo} "${newColumn.name}"`,
           variant: "default",
         })
       } catch (err) {
@@ -363,15 +420,15 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           return newSet
         })
 
-        const errorMessage = err instanceof Error ? err.message : "Erreur inconnue"
+        const errorMessage = err instanceof Error ? err.message : t.unknownError
         toast({
-          title: "❌ Erreur",
-          description: `Impossible de déplacer le ticket #${issue.iid}: ${errorMessage}`,
+          title: "❌ " + t.error,
+          description: `${t.cannotMoveTicket} #${issue.iid}: ${errorMessage}`,
           variant: "destructive",
         })
       }
     },
-    [issues, columns, gitlabApi, projectId, toast],
+    [issues, columns, gitlabApi, projectId, toast, availableColumns, t],
   )
 
   const handleIssueClick = useCallback((issue: GitLabIssue) => {
@@ -380,669 +437,217 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
   }, [])
 
   const handleNewIssueClick = () => {
-    setShowNewIssueModal(true)
-  }
-
-  const handleCloseNewIssueModal = () => {
-    setShowNewIssueModal(false)
-    setNewIssueForm({
+    setIssueModalMode("create")
+    setIssueForm({
       title: "",
       description: "",
+      status: "open",
       labels: [],
       assignee_id: null,
+      start_date: null,
+      due_date: null,
     })
+    setShowIssueModal(true)
   }
 
-  const handleCreateIssue = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleEditIssueClick = (issue: GitLabIssue) => {
+    setEditingIssue(issue)
+    setIssueModalMode("edit")
 
-    if (!newIssueForm.title.trim()) {
-      return
-    }
+    // Get non-status labels
+    const statusLabels = kanbanConfig.columns.flatMap((col) => col.labels)
+    const nonStatusLabels = issue.labels.filter(
+      (label) =>
+        !statusLabels.some(
+          (statusLabel) =>
+            label.toLowerCase().includes(statusLabel.toLowerCase()) ||
+            statusLabel.toLowerCase().includes(label.toLowerCase()),
+        ),
+    )
 
-    try {
-      setCreatingIssue(true)
+    // Get current column
+    const currentColumn = getIssueColumn(issue, kanbanConfig)
 
-      const newIssue = await gitlabApi.createIssue(projectId, {
-        title: newIssueForm.title,
-        description: newIssueForm.description || undefined,
-        labels: newIssueForm.labels.length > 0 ? newIssueForm.labels : undefined,
-        assignee_ids: newIssueForm.assignee_id ? [newIssueForm.assignee_id] : undefined,
-      })
-
-      // Add the new issue to the list
-      // @ts-expect-error
-      setIssues((prev) => [newIssue, ...prev])
-
-      // Close modal and reset form
-      handleCloseNewIssueModal()
-
-      toast({
-        title: "✅ Issue créée",
-        description: `L'issue #${newIssue.iid} "${newIssue.title}" a été créée avec succès`,
-        variant: "default",
-      })
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Erreur lors de la création de l'issue"
-      toast({
-        title: "❌ Erreur",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setCreatingIssue(false)
-    }
-  }
-
-  function SortableIssue({ issue }: { issue: GitLabIssue }) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-      id: issue.id.toString(),
+    setIssueForm({
+      title: issue.title,
+      description: issue.description || "",
+      status: currentColumn,
+      labels: nonStatusLabels,
+      assignee_id: issue.assignees.length > 0 ? issue.assignees[0].id : null,
+      start_date: issue.start_date ? new Date(issue.start_date) : null,
+      due_date: issue.due_date ? new Date(issue.due_date) : null,
     })
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-    }
-
-    const getColumnColor = () => {
-      const issueColumnId = getIssueColumn(issue, kanbanConfig)
-      const column = columns.find((col) => col.id === issueColumnId)
-      return column?.color || "#6b7280"
-    }
-
-    const getDisplayLabels = (issueLabels: string[]) => {
-      const columnLabels = kanbanConfig.columns.flatMap((col) => col.labels)
-      return issueLabels.filter(
-        (label) =>
-          !columnLabels.some(
-            (colLabel) =>
-              label.toLowerCase().includes(colLabel.toLowerCase()) ||
-              colLabel.toLowerCase().includes(label.toLowerCase()),
-          ),
-      )
-    }
-
-    const displayLabels = getDisplayLabels(issue.labels)
-    const isPending = pendingUpdates.has(issue.id)
-
-    return (
-      <div ref={setNodeRef} style={style} {...attributes}>
-        <Card
-          className={`cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing ${
-            isPending ? "opacity-70 animate-pulse" : ""
-          }`}
-          onClick={(e) => {
-            // Ne pas ouvrir la modale si on clique sur le menu dropdown
-            if (!(e.target as Element).closest("[data-dropdown-trigger]")) {
-              handleIssueClick(issue)
-            }
-          }}
-        >
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between">
-              <div className="flex-1" {...listeners}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="text-xs font-mono">
-                    #{issue.iid}
-                  </Badge>
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getColumnColor() }} />
-                  {issue.state === "closed" && (
-                    <Badge variant="secondary" className="text-xs">
-                      Fermé
-                    </Badge>
-                  )}
-                  {isPending && (
-                    <Badge variant="outline" className="text-xs">
-                      ⏳
-                    </Badge>
-                  )}
-                </div>
-                <CardTitle className="text-sm font-medium leading-tight">{issue.title}</CardTitle>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" data-dropdown-trigger>
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuCheckboxItem asChild>
-                    <a href={issue.web_url} target="_blank" rel="noopener noreferrer" className="flex items-center">
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      {t.viewInGitlab}
-                    </a>
-                  </DropdownMenuCheckboxItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0" {...listeners}>
-            {issue.description && (
-              <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                {issue.description.replace(/[#*`]/g, "").substring(0, 100)}...
-              </p>
-            )}
-
-            {displayLabels.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-3">
-                {displayLabels.slice(0, 3).map((label) => (
-                  <Badge key={label} variant="secondary" className="text-xs">
-                    {label}
-                  </Badge>
-                ))}
-                {displayLabels.length > 3 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{displayLabels.length - 3}
-                  </Badge>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                {new Date(issue.created_at).toLocaleDateString("fr-FR")}
-              </div>
-              <div className="flex -space-x-1">
-                {issue.assignees.slice(0, 2).map((assignee) => (
-                  <Avatar key={assignee.id} className="w-6 h-6 border-2 border-white">
-                    <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
-                    <AvatarFallback className="text-xs">
-                      {assignee.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .substring(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-                {issue.assignees.length > 2 && (
-                  <div className="w-6 h-6 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-xs">
-                    +{issue.assignees.length - 2}
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
+    setShowIssueModal(true)
   }
 
-  function DroppableColumn({ column }: { column: KanbanColumn & { totalIssues: number; hasMore: boolean } }) {
-    const { setNodeRef, isOver } = useDroppable({ id: column.id })
-
-    return (
-      <div className="flex flex-col h-full">
-        <div className="rounded-t-lg p-4 border-b flex-shrink-0" style={{ backgroundColor: `${column.color}20` }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: column.color }} />
-              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                {column.emoji && <span>{column.emoji}</span>}
-                {column.name}
-              </h3>
-            </div>
-            <Badge variant="secondary">{column.totalIssues}</Badge>
-          </div>
-        </div>
-
-        <div
-          ref={setNodeRef}
-          className={`bg-white rounded-b-lg flex-1 p-4 border border-t-0 transition-colors overflow-y-auto ${
-            isOver ? "bg-blue-50 border-blue-200" : ""
-          }`}
-        >
-          <div className="space-y-4">
-            <SortableContext items={column.issues.map((i) => i.id.toString())} strategy={verticalListSortingStrategy}>
-              {column.issues.map((issue) => (
-                <SortableIssue key={issue.id} issue={issue} />
-              ))}
-            </SortableContext>
-
-            {column.hasMore && (
-              <Button variant="outline" className="w-full" onClick={() => handleLoadMore(column.id)} size="sm">
-                <ChevronDown className="w-4 h-4 mr-2" />
-                {t.loadMore} ({column.totalIssues - column.issues.length} remaining)
-              </Button>
-            )}
-
-            <Button
-              variant="ghost"
-              className="w-full border-2 border-dashed border-gray-300 h-12"
-              onClick={handleNewIssueClick}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {t.newIssue}
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
+  const handleEditFromDetailView = () => {
+    if (selectedIssue) {
+      setSelectedIssue(null) // Close detail view
+      handleEditIssueClick(selectedIssue)
+    }
   }
 
-  // Composant pour les commentaires avec chargement à la demande
-  function CollapsibleComments({ issue }: { issue: GitLabIssue }) {
-    const [isOpen, setIsOpen] = useState(false)
-    const [comments, setComments] = useState<GitLabComment[]>([])
-    const [loading, setLoading] = useState(false)
-    const [hasLoaded, setHasLoaded] = useState(false)
+  const handleCloseIssueModal = useCallback(() => {
+    setShowIssueModal(false)
+    setEditingIssue(null)
+    setIssueForm({
+      title: "",
+      description: "",
+      status: "open",
+      labels: [],
+      assignee_id: null,
+      start_date: null,
+      due_date: null,
+    })
+  }, [])
 
-    const loadComments = async () => {
-      if (hasLoaded) return
+  const handleSubmitIssue = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+
+      if (!issueForm.title.trim()) {
+        return
+      }
 
       try {
-        setLoading(true)
-        const commentsData = await gitlabApi.getIssueComments(projectId, issue.iid)
-        setComments(commentsData.filter((comment) => !comment.system))
-        setHasLoaded(true)
+        setSubmittingIssue(true)
+
+        // Build final labels
+        const finalLabels = [...issueForm.labels]
+
+        // Add status label if necessary
+        const selectedColumn = availableColumns.find((col) => col.id === issueForm.status)
+        if (selectedColumn && selectedColumn.matchCriteria === "labels" && selectedColumn.labels.length > 0) {
+          finalLabels.push(selectedColumn.labels[0])
+        }
+
+        if (issueModalMode === "create") {
+          // Create new issue
+          const newIssue = await gitlabApi.createIssue(projectId, {
+            title: issueForm.title,
+            description: issueForm.description || undefined,
+            labels: finalLabels.length > 0 ? finalLabels : undefined,
+            assignee_ids: issueForm.assignee_id ? [issueForm.assignee_id] : undefined,
+            due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : undefined,
+            start_date: issueForm.start_date ? format(issueForm.start_date, "yyyy-MM-dd") : undefined,
+          })
+
+          // Add the new issue to the list
+          // @ts-expect-error - API response type mismatch
+          setIssues((prev) => [newIssue, ...prev])
+
+          toast({
+            title: "✅ " + t.issueCreated,
+            description: `${t.issue} #${newIssue.iid} "${newIssue.title}" ${t.createdSuccessfully}`,
+            variant: "default",
+          })
+        } else if (issueModalMode === "edit" && editingIssue) {
+          // Update existing issue
+          await gitlabApi.updateIssue(projectId, editingIssue.iid, {
+            labels: finalLabels.length > 0 ? finalLabels : undefined,
+            assignee_ids: issueForm.assignee_id ? [issueForm.assignee_id] : [],
+            due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : null,
+          })
+
+          // Handle start date update via comment if it changed
+          const currentStartDate = editingIssue.start_date
+          const newStartDate = issueForm.start_date ? format(issueForm.start_date, "yyyy-MM-dd") : null
+
+          if (currentStartDate !== newStartDate && newStartDate) {
+            try {
+              await gitlabApi.updateStartDate(projectId, editingIssue.iid, newStartDate)
+            } catch (err) {
+              console.error("Error updating start date:", err)
+              // Continue even if comment addition fails
+            }
+          }
+
+          // Update the issue in the list
+          setIssues((prev) =>
+            prev.map((issue) =>
+              issue.id === editingIssue.id
+                ? {
+                  ...issue,
+                  title: issueForm.title,
+                  description: issueForm.description,
+                  labels: finalLabels,
+                  assignees: issueForm.assignee_id
+                    ? allAssigneesWithIds.filter((a) => a.id === issueForm.assignee_id)
+                    : [],
+                  due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : null,
+                  start_date: newStartDate,
+                }
+                : issue,
+            ),
+          )
+
+          toast({
+            title: "✅ " + t.issueUpdated,
+            description: `${t.issue} #${editingIssue.iid} "${issueForm.title}" ${t.updatedSuccessfully}`,
+            variant: "default",
+          })
+        }
+
+        // Close modal and reset form
+        handleCloseIssueModal()
       } catch (err) {
-        console.error("Erreur lors du chargement des commentaires:", err)
-        setComments([])
+        const errorMessage = err instanceof Error ? err.message : t.operationError
+        toast({
+          title: "❌ " + t.error,
+          description: errorMessage,
+          variant: "destructive",
+        })
       } finally {
-        setLoading(false)
+        setSubmittingIssue(false)
       }
-    }
+    },
+    [
+      issueForm,
+      gitlabApi,
+      projectId,
+      handleCloseIssueModal,
+      toast,
+      availableColumns,
+      issueModalMode,
+      editingIssue,
+      allAssigneesWithIds,
+      t,
+    ],
+  )
 
-    const handleToggle = () => {
-      if (!isOpen && !hasLoaded) {
-        loadComments()
+  const handleDeleteIssue = useCallback(
+    async (issue: GitLabIssue) => {
+      try {
+        setDeletingIssue(true)
+
+        await gitlabApi.deleteIssue(projectId, issue.iid)
+
+        // Remove the issue from the list
+        setIssues((prev) => prev.filter((i) => i.id !== issue.id))
+
+        // Close the delete dialog
+        setIssueToDelete(null)
+
+        toast({
+          title: "✅ " + t.issueDeleted,
+          description: `${t.issue} #${issue.iid} "${issue.title}" ${t.deletedSuccessfully}`,
+          variant: "default",
+        })
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : t.deletionError
+        toast({
+          title: "❌ " + t.error,
+          description: errorMessage,
+          variant: "destructive",
+        })
+      } finally {
+        setDeletingIssue(false)
       }
-      setIsOpen(!isOpen)
-    }
+    },
+    [gitlabApi, projectId, toast, t],
+  )
 
-    return (
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger asChild>
-          <Button
-            variant="ghost"
-            className="w-full justify-between p-0 h-auto font-medium text-sm"
-            onClick={handleToggle}
-          >
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              {t.comments} ({issue.user_notes_count || 0})
-            </div>
-            <div className="flex items-center gap-1">
-              {loading && <Loader2 className="w-3 h-3 animate-spin" />}
-              <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
-            </div>
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 mt-4">
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="border rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Skeleton className="w-6 h-6 rounded-full" />
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-3 w-16" />
-                  </div>
-                  <Skeleton className="h-4 w-full mb-2" />
-                  <Skeleton className="h-4 w-3/4" />
-                </div>
-              ))}
-            </div>
-          ) : comments.length > 0 ? (
-            <div className="space-y-4">
-              {comments.map((comment) => (
-                <div key={comment.id} className="border rounded-lg p-4 animate-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Avatar className="w-6 h-6">
-                      <AvatarImage src={comment.author.avatar_url || "/placeholder.svg"} alt={comment.author.name} />
-                      <AvatarFallback className="text-xs">
-                        {comment.author.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .substring(0, 2)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium">{comment.author.name}</span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(comment.created_at).toLocaleDateString("fr-FR")}
-                    </span>
-                  </div>
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>{comment.body}</ReactMarkdown>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 py-4">{t.noComments}</p>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
-    )
-  }
-
-  function IssueModal() {
-    if (!selectedIssue) return null
-
-    const getDisplayLabels = (issueLabels: string[]) => {
-      const columnLabels = kanbanConfig.columns.flatMap((col) => col.labels)
-      return issueLabels.filter(
-        (label) =>
-          !columnLabels.some(
-            (colLabel) =>
-              label.toLowerCase().includes(colLabel.toLowerCase()) ||
-              colLabel.toLowerCase().includes(label.toLowerCase()),
-          ),
-      )
-    }
-
-    const displayLabels = getDisplayLabels(selectedIssue.labels)
-
-    return (
-      <Dialog open={!!selectedIssue} onOpenChange={() => setSelectedIssue(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Badge variant="outline" className="font-mono">
-                #{selectedIssue.iid}
-              </Badge>
-              {selectedIssue.title}
-            </DialogTitle>
-          </DialogHeader>
-
-          <ScrollArea className="max-h-[calc(90vh-120px)]">
-            <div className="space-y-6">
-              {/* Issue Info */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
-                    <span>
-                      {t.createdBy} {selectedIssue.author.name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    <span>{new Date(selectedIssue.created_at).toLocaleDateString("fr-FR")}</span>
-                  </div>
-                  <Badge variant="secondary">
-                    {(() => {
-                      const columnId = getIssueColumn(selectedIssue, kanbanConfig)
-                      const column = columns.find((col) => col.id === columnId)
-                      return column ? column.name : "Non assigné"
-                    })()}
-                  </Badge>
-                </div>
-
-                {/* Labels */}
-                {displayLabels.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {displayLabels.map((label) => (
-                      <Badge key={label} variant="secondary">
-                        {label}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-
-                {/* Assignees */}
-                {selectedIssue.assignees.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">{t.assignedTo_}</h4>
-                    <div className="flex gap-2">
-                      {selectedIssue.assignees.map((assignee) => (
-                        <div key={assignee.id} className="flex items-center gap-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
-                            <AvatarFallback className="text-xs">
-                              {assignee.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .substring(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm">{assignee.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
-              {selectedIssue.description && (
-                <>
-                  <Separator />
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>{selectedIssue.description}</ReactMarkdown>
-                  </div>
-                </>
-              )}
-
-              <Separator />
-
-              {/* Comments */}
-              <CollapsibleComments issue={selectedIssue} />
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-4">
-                <Button asChild>
-                  <a href={selectedIssue.web_url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    {t.viewInGitlab}
-                  </a>
-                </Button>
-              </div>
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
-  function labelsValue(labels: string[]): string {
-    return labels.length === 0 ? "none" : labels.join("|") // never returns ""
-  }
-
-  function NewIssueModal() {
-    const allLabelsForFilter = useMemo(() => {
-      const labelsSet = new Set<string>()
-      issues.forEach((issue) => issue.labels.forEach((label) => labelsSet.add(label)))
-      return Array.from(labelsSet).sort()
-    }, [issues])
-
-    return (
-      <Dialog open={showNewIssueModal} onOpenChange={setShowNewIssueModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5" />
-              {t.newIssue}
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateIssue}>
-            <ScrollArea className="max-h-[calc(90vh-180px)] px-1">
-              <div className="space-y-6 pr-3">
-                {/* Title */}
-                <div className="space-y-2">
-                  <Label htmlFor="title">{t.issueTitle_}</Label>
-                  <Input
-                    id="title"
-                    value={newIssueForm.title}
-                    onChange={(e) => setNewIssueForm((prev) => ({ ...prev, title: e.target.value }))}
-                    placeholder="Titre de l'issue..."
-                    required
-                  />
-                </div>
-
-                {/* Description */}
-                <div className="space-y-2">
-                  <Label htmlFor="description">{t.issueDescription_}</Label>
-                  <Textarea
-                    id="description"
-                    value={newIssueForm.description}
-                    onChange={(e) => setNewIssueForm((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder="Description de l'issue (Markdown supporté)..."
-                    rows={6}
-                  />
-                </div>
-
-                {/* Labels */}
-                {allLabelsForFilter.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>{t.labels}</Label>
-                    <Select
-                      value={labelsValue(newIssueForm.labels)}
-                      onValueChange={(value) => {
-                        if (value === "none") {
-                          setNewIssueForm((prev) => ({ ...prev, labels: [] }))
-                        } else {
-                          setNewIssueForm((prev) => ({ ...prev, labels: value.split("|") }))
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t.selectLabels}>
-                          {newIssueForm.labels.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {newIssueForm.labels.slice(0, 3).map((label) => (
-                                <Badge key={label} variant="secondary" className="text-xs">
-                                  {label}
-                                </Badge>
-                              ))}
-                              {newIssueForm.labels.length > 3 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{newIssueForm.labels.length - 3}
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            t.selectLabels
-                          )}
-                        </SelectValue>
-                      </SelectTrigger>
-
-                      <SelectContent>
-                        <SelectItem value="none">{t.noLabels}</SelectItem>
-
-                        {/* generate an item for each label; clicking toggles its presence */}
-                        {allLabelsForFilter.map((label) => {
-                          const next = newIssueForm.labels.includes(label)
-                            ? newIssueForm.labels.filter((l) => l !== label)
-                            : [...newIssueForm.labels, label]
-                          return (
-                            <SelectItem key={label} value={labelsValue(next)}>
-                              <div className="flex items-center gap-2">
-                                <Checkbox checked={newIssueForm.labels.includes(label)} />
-                                {label}
-                              </div>
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Assignee */}
-                {allAssigneesWithIds.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>{t.assignedTo_}</Label>
-                    <Select
-                      value={newIssueForm.assignee_id?.toString() || "none"}
-                      onValueChange={(value) => {
-                        setNewIssueForm((prev) => ({
-                          ...prev,
-                          assignee_id: value === "none" ? null : Number.parseInt(value),
-                        }))
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t.selectAssignee}>
-                          {newIssueForm.assignee_id
-                            ? (() => {
-                              const assignee = allAssigneesWithIds.find((a) => a.id === newIssueForm.assignee_id)
-                              return assignee ? (
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="w-6 h-6">
-                                    <AvatarImage
-                                      src={assignee.avatar_url || "/placeholder.svg"}
-                                      alt={assignee.name}
-                                    />
-                                    <AvatarFallback className="text-xs">
-                                      {assignee.name
-                                        .split(" ")
-                                        .map((n: any[]) => n[0])
-                                        .join("")
-                                        .substring(0, 2)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span>{assignee.name}</span>
-                                </div>
-                              ) : (
-                                t.selectAssignee
-                              )
-                            })()
-                            : t.selectAssignee}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">{t.noAssignee}</SelectItem>
-                        {allAssigneesWithIds.map((assignee) => (
-                          <SelectItem key={assignee.id} value={assignee.id.toString()}>
-                            <div className="flex items-center gap-2">
-                              <Avatar className="w-6 h-6">
-                                <AvatarImage src={assignee.avatar_url || "/placeholder.svg"} alt={assignee.name} />
-                                <AvatarFallback className="text-xs">
-                                  {assignee.name
-                                    .split(" ")
-                                    .map((n: any[]) => n[0])
-                                    .join("")
-                                    .substring(0, 2)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span>{assignee.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-              <Button type="button" variant="outline" onClick={handleCloseNewIssueModal}>
-                {t.cancel}
-              </Button>
-              <Button type="submit" disabled={!newIssueForm.title.trim() || creatingIssue}>
-                {creatingIssue ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {t.creating}
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    {t.createIssue}
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
-  const allLabelsForFilter = useMemo(() => {
-    const labelsSet = new Set<string>()
-    issues.forEach((issue) => issue.labels.forEach((label) => labelsSet.add(label)))
-    return Array.from(labelsSet).sort()
-  }, [issues])
-
+  // Loading state
   if (loading) {
     return (
       <div className="h-full bg-gray-50 p-6">
@@ -1070,6 +675,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     )
   }
 
+  // Error state
   if (error) {
     return (
       <div className="h-full bg-gray-50 p-6">
@@ -1134,7 +740,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="h-10">
                       <Filter className="w-4 h-4 mr-2" />
                       {t.labels}
                       {selectedLabels.length > 0 && (
@@ -1147,7 +753,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
                   <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
                     <DropdownMenuLabel>{t.labels}</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {allLabelsForFilter.map((label) => (
+                    {allNonStatusLabels.map((label) => (
                       <DropdownMenuCheckboxItem
                         key={label}
                         checked={selectedLabels.includes(label)}
@@ -1161,7 +767,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
 
                 <Select value={selectedAssignee} onValueChange={setSelectedAssignee}>
                   <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Assigné à" />
+                    <SelectValue placeholder={t.assignedTo} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{t.allAssignees}</SelectItem>
@@ -1182,8 +788,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
             </div>
 
             <div className="mt-4 text-sm text-gray-600">
-              {filteredIssues.length} issue{filteredIssues.length !== 1 ? "s" : ""}{" "}
-              {filteredIssues.length !== 1 ? t.issuesFound : t.issueFound}
+              {filteredIssues.length} {filteredIssues.length !== 1 ? t.issuesFound : t.issueFound}
             </div>
           </div>
         </div>
@@ -1194,7 +799,16 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
             <div className="flex gap-4 h-full" style={{ minWidth: "max-content" }}>
               {columnsWithIssues.map((column) => (
                 <div key={column.id} className="w-80 flex-shrink-0 h-full">
-                  <DroppableColumn column={column} />
+                  <KanbanColumn
+                    column={column}
+                    columns={columns}
+                    pendingUpdates={pendingUpdates}
+                    onIssueClick={handleIssueClick}
+                    onEditClick={handleEditIssueClick}
+                    onDeleteClick={setIssueToDelete}
+                    onLoadMore={handleLoadMore}
+                    onNewIssue={handleNewIssueClick}
+                  />
                 </div>
               ))}
             </div>
@@ -1202,6 +816,7 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         </div>
       </div>
 
+      {/* Drag Overlay */}
       <DragOverlay>
         {activeIssue ? (
           <Card className="cursor-grabbing shadow-lg rotate-3">
@@ -1229,8 +844,35 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       </DragOverlay>
 
       {/* Modals */}
-      {selectedIssue && <IssueModal />}
-      <NewIssueModal />
+      <IssueDetailModal
+        issue={selectedIssue}
+        columns={columns}
+        onClose={() => setSelectedIssue(null)}
+        onEdit={handleEditFromDetailView}
+        customLinkComponent={CustomLink}
+        customImageComponent={CustomImage}
+      />
+
+      <IssueModal
+        isOpen={showIssueModal}
+        onClose={handleCloseIssueModal}
+        onSubmit={handleSubmitIssue}
+        form={issueForm}
+        setForm={setIssueForm}
+        allAssigneesWithIds={allAssigneesWithIds}
+        allNonStatusLabels={allNonStatusLabels}
+        availableColumns={availableColumns}
+        isSubmitting={submittingIssue}
+        mode={issueModalMode}
+        issue={editingIssue}
+      />
+
+      <DeleteIssueDialog
+        issue={issueToDelete}
+        isDeleting={deletingIssue}
+        onClose={() => setIssueToDelete(null)}
+        onConfirm={handleDeleteIssue}
+      />
     </DndContext>
   )
 }

@@ -1,235 +1,271 @@
-# GitLab Issue Manager
+# GitLab Kanban Manager
 
-A modern, responsive Kanban board for GitLab projects built with Next.js, TypeScript, and Tailwind CSS. Manage your GitLab issues with an intuitive drag-and-drop interface, advanced filtering, and real-time synchronization.
+A modern, responsive Kanban board application for managing GitLab issues with advanced features like drag-and-drop, filtering, and real-time updates.
 
-![Next.js](https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=for-the-badge&logo=tailwind-css)
+## Features
 
-## ✨ Features
+- 🎯 **Kanban Board**: Visual project management with drag-and-drop functionality
+- 🏷️ **Smart Filtering**: Filter by labels, assignees, milestones, and due dates
+- 🌐 **Internationalization**: Multi-language support (English, French, Spanish, German)
+- 📱 **Responsive Design**: Works seamlessly on desktop, tablet, and mobile
+- 🔒 **Secure**: Client-side encryption for sensitive data
+- ⚡ **Performance**: Optimized loading with pagination and lazy loading
+- 🎨 **Modern UI**: Clean interface with dark/light theme support
 
-### 🎯 Core Functionality
-- **Drag & Drop Interface**: Move issues between columns with smooth animations
-- **Multi-Project Support**: Manage multiple GitLab projects from a single dashboard
-- **Real-time Sync**: Changes are immediately reflected in GitLab
-- **Responsive Design**: Works perfectly on desktop, tablet, and mobile devices
+## Quick Start
 
-### 🔍 Advanced Filtering & Search
-- **Smart Search**: Search by issue number, title, or description
-- **Label Filtering**: Filter issues by multiple labels
-- **Assignee Filtering**: View issues by specific team members
-- **State Filtering**: Show open, closed, or all issues
+### Option 1: Docker (Recommended)
 
-### 📋 Issue Management
-- **Create Issues**: Add new issues directly from the Kanban board
-- **Rich Descriptions**: Full Markdown support with image rendering
-- **Label Management**: Create and assign labels with multi-select interface
-- **Assignee Management**: Assign issues to team members
+#### Pull and Run from Docker Hub
+```bash
+# Pull the latest image
+docker pull ghcr.io/silvio-br/gitlab-issue-manager:latest
 
-### 💬 Comments & Collaboration
-- **Collapsible Comments**: Load comments on-demand to improve performance
-- **Markdown Support**: Rich text formatting in comments and descriptions
-- **Image Support**: Automatic URL correction for GitLab-hosted images
-- **User Avatars**: Visual identification of team members
+# Run the container
+docker run -p 3000:3000 \
+ghcr.io/silvio-br/gitlab-issue-manager:latest
+```
 
-### 🎨 Customizable Workflow
-- **Configurable Columns**: Customize your workflow with predefined column configurations
-- **Label-based Routing**: Automatically route issues based on labels
-- **Visual Indicators**: Color-coded priorities and status indicators
-- **Progress Tracking**: Visual progress indicators for each column
+#### Build and Run Locally
+```bash
+# Clone the repository
+git clone https://github.com/your-username/gitlab-kanban-manager.git
+cd gitlab-kanban-manager
 
-### 🔒 Security & Privacy
-- **Encrypted Storage**: Personal Access Tokens are encrypted using device-specific keys
-- **Local Storage**: All data stored locally in IndexedDB
-- **No Server Required**: Completely client-side application
-- **CORS Compliant**: Works with GitLab.com and self-hosted instances
+# Build the Docker image
+docker build -t gitlab-kanban-manager .
 
-### 🌍 Internationalization
-- **Multi-language Support**: English and French translations
-- **Easy Extension**: Simple translation system for adding new languages
-- **Locale-aware**: Date formatting and number display respect user locale
+# Run the container
+docker run -p 3000:3000 \
+gitlab-kanban-manager
+```
 
-## 🚀 Quick Start
+#### Docker Compose
+```yaml
+version: '3.8'
+services:
+gitlab-kanban:
+image: your-registry/gitlab-kanban-manager:latest
+ports:
+- "3000:3000"
+environment:
+- NEXT_PUBLIC_GITLAB_URL=https://gitlab.com
+- NEXT_PUBLIC_GITLAB_TOKEN=your_gitlab_token
+restart: unless-stopped
+```
 
-### Prerequisites
+### Option 2: Local Development
+
+#### Prerequisites
 - Node.js 18+
 - npm or yarn
-- GitLab Personal Access Token
 
-### Installation
-
-1. **Clone the repository**
+#### Installation
 ```bash
-git clone https://github.com/yourusername/gitlab-kanban-manager.git
+# Clone the repository
+git clone https://github.com/your-username/gitlab-kanban-manager.git
 cd gitlab-kanban-manager
+
+# Install dependencies
+npm install
+
+# Create environment file
+cp .env.example .env.local
+
+# Edit .env.local with your GitLab configuration
+# NEXT_PUBLIC_GITLAB_URL=https://gitlab.com
+# NEXT_PUBLIC_GITLAB_TOKEN=your_gitlab_token
+
+# Start development server
+npm run dev
 ```
 
-2. **Install dependencies**
-```bash
-pnpm install
-```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-3. **Start the development server**
-```bash
-pnpm run dev
-```
-
-4. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-### GitLab Configuration
-
-1. **Create a Personal Access Token**
-    - Go to GitLab → User Settings → Access Tokens
-    - Create a new token with scopes: `api`, `read_user`
-    - Copy the token (starts with `glpat-`)
-
-2. **Configure the Application**
-    - Enter your GitLab instance URL (e.g., `https://gitlab.com` or `https://your-gitlab.example.com`)
-    - Paste your Personal Access Token
-    - Test the connection
-
-3. **Select Projects**
-    - Choose which GitLab projects you want to manage
-    - Projects will appear in your dashboard sidebar
-
-## 📖 Usage Guide
-
-### Setting Up Your Kanban Board
-
-The application comes with a pre-configured workflow that maps GitLab labels to Kanban columns:
-
-| Column | Labels                                       | Description |
-|--------|----------------------------------------------|-------------|
-| 📋 Backlog | Default                                      | Issues without specific workflow labels |
-| ⏳ 0 - À valider | `⏳ 0 - À valider`, `à valider`, `to validate`, `validation` | Issues awaiting validation |
-| 🎯 1 - À estimer | `🎯 1 - À estimer`, `à estimer`, `to estimate`, `estimation` | Issues needing estimation |
-| 📌 2 - À développer | `📌 2 - À développer`, `à développer`, `to develop`, `todo`         | Ready for development |
-| 🏄 3 - En cours | `🏄 3 - En cours`, `en cours`, `in progress`, `doing`, `wip`    | Currently in development |
-| 🔍 4 - À review | `🔍 4 - À review`, `à review`, `to review`, `review`            | Code review phase |
-| ✅ 5 - À tester | `✅ 5 - À tester`, `à tester`, `to test`, `testing`, `qa`       | Testing phase |
-| 🛫 6 - À déployer | `🛫 6 - À déployer`, `à déployer`, `to deploy`, `deployment`      | Ready for deployment |
-| 🎉 Terminé | Closed issues                                | Completed work |
-
-## ⚙️ Configuration
-
-### Kanban Column Configuration
-
-You can customize the Kanban columns by editing `config/kanban-config.ts`:
-
-```typescript
-export const kanbanConfig: KanbanConfig = {
-    fallbackColumn: "open",
-    closedColumn: "closed",
-    columns: [
-        {
-        id: "custom-column",
-        name: "Custom Column",
-        emoji: "🔥",
-        order: 1,
-        color: "#ff6b6b",
-        labels: ["custom-label", "priority"],
-        matchCriteria: "labels",
-        },
-        // ... more columns
-    ],
-}
-```
+## Configuration
 
 ### Environment Variables
 
-Create a `.env.local` file for development:
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `NEXT_PUBLIC_GITLAB_URL` | GitLab instance URL | Yes | - |
+| `NEXT_PUBLIC_GITLAB_TOKEN` | GitLab personal access token | Yes | - |
+| `NEXT_PUBLIC_DEFAULT_LANGUAGE` | Default language (en, fr, es, de) | No | en |
 
-```env
-# Optional: Default GitLab token for development
-NEXT_PUBLIC_GITLAB_TOKEN=your_token_here
+### GitLab Token Setup
+
+1. Go to your GitLab instance → **User Settings** → **Access Tokens**
+2. Create a new token with the following scopes:
+   - `api` - Full API access
+   - `read_user` - Read user information
+   - `read_repository` - Read repository data
+3. Copy the token and add it to your environment variables
+
+### Docker Environment Variables
+
+When running with Docker, you can pass environment variables in several ways:
+
+#### Command Line
+```bash
+docker run -p 3000:3000 \
+-e NEXT_PUBLIC_GITLAB_URL=https://gitlab.com \
+-e NEXT_PUBLIC_GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx \
+-e NEXT_PUBLIC_DEFAULT_LANGUAGE=en \
+gitlab-kanban-manager
 ```
 
-## 🏗️ Architecture
+#### Environment File
+```bash
+# Create .env file
+echo "NEXT_PUBLIC_GITLAB_URL=https://gitlab.com" > .env
+echo "NEXT_PUBLIC_GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx" >> .env
 
-### Tech Stack
-- **Framework**: Next.js 14 with App Router
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: Radix UI primitives
-- **Drag & Drop**: @dnd-kit
-- **Storage**: IndexedDB with encryption
-- **Markdown**: react-markdown
+# Run with env file
+docker run -p 3000:3000 --env-file .env gitlab-kanban-manager
+```
+
+#### Docker Compose with Environment File
+```yaml
+version: '3.8'
+services:
+gitlab-kanban:
+image: gitlab-kanban-manager
+ports:
+- "3000:3000"
+env_file:
+- .env
+restart: unless-stopped
+```
+
+## Usage
+
+### Basic Workflow
+
+1. **Connect to GitLab**: Enter your GitLab URL and access token
+2. **Select Project**: Choose from your available GitLab projects
+3. **Configure Board**: Set up columns based on issue labels or status
+4. **Manage Issues**:
+   - Drag and drop issues between columns
+   - Create new issues directly from the board
+   - Edit issue details in the modal
+   - Filter issues by various criteria
+
+### Keyboard Shortcuts
+
+- `Ctrl/Cmd + N` - Create new issue
+- `Ctrl/Cmd + F` - Focus search/filter
+- `Escape` - Close modals/dialogs
+- `Enter` - Confirm actions
+
+### Filtering Options
+
+- **Labels**: Filter by issue labels (excluding status labels)
+- **Assignees**: Show issues assigned to specific users
+- **Milestones**: Filter by project milestones
+- **Due Dates**: Filter by due date ranges
+- **Search**: Text search in issue titles and descriptions
+
+## Development
 
 ### Project Structure
+
 ```
 ├── app/                    # Next.js app directory
-│   ├── dashboard/         # Main dashboard page
-│   ├── projects/          # Project selection page
-│   └── page.tsx          # Configuration page
-├── components/            # Reusable UI components
-│   ├── ui/               # Base UI components
-│   └── ...               # Feature-specific components
-├── config/               # Configuration files
-├── contexts/             # React contexts
+├── components/            # React components
+│   ├── kanban/           # Kanban-specific components
+│   └── ui/               # Reusable UI components
 ├── hooks/                # Custom React hooks
-├── lib/                  # Utility libraries
-└── types/                # TypeScript type definitions
+├── lib/                  # Utility functions
+├── types/                # TypeScript type definitions
+├── config/               # Configuration files
+└── styles/               # Global styles
 ```
 
-### Data Flow
-1. **Authentication**: Personal Access Token encrypted and stored locally
-2. **Project Selection**: User selects GitLab projects to manage
-3. **Data Fetching**: Issues fetched from GitLab API
-4. **Local Processing**: Issues categorized into Kanban columns
-5. **Real-time Updates**: Changes synchronized back to GitLab
+### Key Components
 
-## 🔧 Development
+- **`GitLabKanbanBoard`**: Main board component
+- **`IssueCard`**: Individual issue card with drag-and-drop
+- **`KanbanColumn`**: Column container with drop zone
+- **`IssueModal`**: Create/edit issue modal
+- **`IssueDetailModal`**: Detailed issue view
 
-### Available Scripts
+### API Integration
 
+The application uses the GitLab REST API v4. Key endpoints:
+
+- `/projects` - List user projects
+- `/projects/:id/issues` - Get project issues
+- `/projects/:id/labels` - Get project labels
+- `/projects/:id/members` - Get project members
+
+### Building for Production
+
+#### Local Build
 ```bash
-# Development server
-pnpm run dev
-
-# Production build
-pnpm run build
-
-# Start production server
-pnpm start
-
-# Linting
-pnpm run lint
-
-# Type checking
-pnpm run type-check
+npm run build
+npm start
 ```
 
-## 🤝 Contributing
+#### Docker Build
+```bash
+# Development build
+docker build -t gitlab-kanban-manager .
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+# Production build with staging
+docker build -f Dockerfile.staging -t gitlab-kanban-manager:staging .
+```
 
-### Code Style
+### Docker Deployment
 
-- **ESLint**: Follow the configured ESLint rules
-- **Prettier**: Code formatting is handled automatically
-- **TypeScript**: Maintain strict type safety
-- **Conventional Commits**: Use conventional commit messages
+#### Single Container
+```bash
+# Build
+docker build -t gitlab-kanban-manager .
 
-## 📝 License
+# Run in production
+docker run -d \
+--name gitlab-kanban \
+-p 80:3000 \
+--restart unless-stopped \
+-e NEXT_PUBLIC_GITLAB_URL=https://your-gitlab.com \
+-e NEXT_PUBLIC_GITLAB_TOKEN=your_token \
+gitlab-kanban-manager
+```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+#### With Docker Compose (Production)
+```yaml
+version: '3.8'
+services:
+gitlab-kanban:
+build: .
+ports:
+- "80:3000"
+environment:
+- NEXT_PUBLIC_GITLAB_URL=https://your-gitlab.com
+- NEXT_PUBLIC_GITLAB_TOKEN=${GITLAB_TOKEN}
+restart: unless-stopped
+healthcheck:
+test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+timeout: 10s
+retries: 3
+```
 
-## 🙏 Acknowledgments
+#### Behind Reverse Proxy (Nginx)
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
 
-- **GitLab**: For providing an excellent API
-- **Radix UI**: For accessible UI primitives
-- **Tailwind CSS**: For utility-first CSS framework
-- **@dnd-kit**: For the drag and drop functionality
-
-## 🗺️ Roadmap
-
-### Upcoming Features
-- [ ] **Gantt Chart View**: Timeline visualization of issues
-- [ ] **Burndown Charts**: Sprint progress tracking
-- [ ] **Custom Fields**: Support for GitLab custom fields
-- [ ] **Webhooks**: Real-time updates via GitLab webhooks
-- [ ] **Bulk Operations**: Multi-select and bulk edit issues
-- [ ] **Time Tracking**: Integration with GitLab time tracking
-- [ ] **Milestone Management**: Visual milestone progress
-- [ ] **Export/Import**: Backup and restore configurations
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}

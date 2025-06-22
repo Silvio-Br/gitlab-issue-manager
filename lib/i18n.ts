@@ -13,6 +13,7 @@ export interface Translations {
   filter: string
   clear: string
   loadMore: string
+  remaining: string
 
   // Navigation
   dashboard: string
@@ -53,9 +54,12 @@ export interface Translations {
   comments: string
   noComments: string
   viewInGitlab: string
+  unassigned: string
 
-  // Issue creation
+  // Issue creation/editing
   createIssue: string
+  editIssue: string
+  updateIssue: string
   issueTitle_: string
   issueDescription_: string
   selectLabels: string
@@ -63,6 +67,18 @@ export interface Translations {
   noLabels: string
   noAssignee: string
   creating: string
+  updating: string
+  startDate: string
+  dueDate: string
+  selectStartDate: string
+  selectDueDate: string
+  status: string
+  selectStatus: string
+  allLabelsSelected: string
+
+  // Placeholders
+  issueTitlePlaceholder: string
+  issueDescriptionPlaceholder: string
 
   // States
   todo: string
@@ -106,6 +122,48 @@ export interface Translations {
   language: string
   english: string
   french: string
+
+  // Configuration - nouvelles clés
+  selfHostedGitlabInstance: string
+  tokenInstructions1: string
+  tokenInstructions2: string
+  tokenInstructions3: string
+
+  // Labels
+  newLabelPlaceholder: string
+  addLabel: string
+  createNewLabel: string
+
+  // Delete confirmation
+  deleteIssue: string
+  deleteIssueConfirmation: string
+  deleteIssueWarning: string
+  deleting: string
+
+  // Due date labels
+  overdueDays: string
+  overdueDay: string
+  dueToday: string
+  dueTomorrow: string
+  dueInDays: string
+  day: string
+  days: string
+
+  // Success/Error messages
+  success: string
+  ticketMoved: string
+  movedTo: string
+  unknownError: string
+  cannotMoveTicket: string
+  issue: string
+  issueCreated: string
+  createdSuccessfully: string
+  issueUpdated: string
+  updatedSuccessfully: string
+  operationError: string
+  issueDeleted: string
+  deletedSuccessfully: string
+  deletionError: string
 }
 
 export const translations: Record<Language, Translations> = {
@@ -122,6 +180,7 @@ export const translations: Record<Language, Translations> = {
     filter: "Filter",
     clear: "Clear",
     loadMore: "Load More",
+    remaining: "remaining",
 
     // Navigation
     dashboard: "Dashboard",
@@ -162,9 +221,12 @@ export const translations: Record<Language, Translations> = {
     comments: "Comments",
     noComments: "No comments",
     viewInGitlab: "View in GitLab",
+    unassigned: "Unassigned",
 
-    // Issue creation
+    // Issue creation/editing
     createIssue: "Create Issue",
+    editIssue: "Edit Issue",
+    updateIssue: "Update Issue",
     issueTitle_: "Title *",
     issueDescription_: "Description",
     selectLabels: "Select labels...",
@@ -172,6 +234,18 @@ export const translations: Record<Language, Translations> = {
     noLabels: "No labels",
     noAssignee: "No assignee",
     creating: "Creating...",
+    updating: "Updating...",
+    startDate: "Start Date",
+    dueDate: "Due Date",
+    selectStartDate: "Select start date...",
+    selectDueDate: "Select due date...",
+    status: "Status",
+    selectStatus: "Select status...",
+    allLabelsSelected: "All labels are selected",
+
+    // Placeholders
+    issueTitlePlaceholder: "Issue title...",
+    issueDescriptionPlaceholder: "Issue description (Markdown supported)...",
 
     // States
     todo: "To Do",
@@ -215,6 +289,48 @@ export const translations: Record<Language, Translations> = {
     language: "Language",
     english: "English",
     french: "French",
+
+    // Configuration - nouvelles clés
+    selfHostedGitlabInstance: "For self-hosted GitLab instances (e.g. https://gitlab.intech.dev)",
+    tokenInstructions1: "1. Go to GitLab → Preferences → Access Tokens",
+    tokenInstructions2: "2. Create a new token with scopes:",
+    tokenInstructions3: "3. Copy the full value (starts with",
+
+    // Labels
+    newLabelPlaceholder: "New label name...",
+    addLabel: "Add label...",
+    createNewLabel: "Create",
+
+    // Delete confirmation
+    deleteIssue: "Delete Issue",
+    deleteIssueConfirmation: "Are you sure you want to delete this issue?",
+    deleteIssueWarning: "This action cannot be undone. The issue will be permanently deleted from GitLab.",
+    deleting: "Deleting...",
+
+    // Due date labels
+    overdueDays: "overdue by",
+    overdueDay: "overdue by",
+    dueToday: "Due today",
+    dueTomorrow: "Due tomorrow",
+    dueInDays: "in",
+    day: "day",
+    days: "days",
+
+    // Success/Error messages
+    success: "Success",
+    ticketMoved: "Ticket moved",
+    movedTo: "moved to",
+    unknownError: "Unknown error",
+    cannotMoveTicket: "Cannot move ticket",
+    issue: "Issue",
+    issueCreated: "Issue created",
+    createdSuccessfully: "created successfully",
+    issueUpdated: "Issue updated",
+    updatedSuccessfully: "updated successfully",
+    operationError: "Error during operation",
+    issueDeleted: "Issue deleted",
+    deletedSuccessfully: "deleted successfully",
+    deletionError: "Error during deletion",
   },
   fr: {
     // Common
@@ -229,6 +345,7 @@ export const translations: Record<Language, Translations> = {
     filter: "Filtrer",
     clear: "Effacer",
     loadMore: "Charger plus",
+    remaining: "restants",
 
     // Navigation
     dashboard: "Tableau de bord",
@@ -269,9 +386,12 @@ export const translations: Record<Language, Translations> = {
     comments: "Commentaires",
     noComments: "Aucun commentaire",
     viewInGitlab: "Voir dans GitLab",
+    unassigned: "Non assigné",
 
-    // Issue creation
+    // Issue creation/editing
     createIssue: "Créer l'issue",
+    editIssue: "Modifier l'issue",
+    updateIssue: "Mettre à jour",
     issueTitle_: "Titre *",
     issueDescription_: "Description",
     selectLabels: "Sélectionner des labels...",
@@ -279,6 +399,18 @@ export const translations: Record<Language, Translations> = {
     noLabels: "Aucun label",
     noAssignee: "Aucun assigné",
     creating: "Création...",
+    updating: "Mise à jour...",
+    startDate: "Date de début",
+    dueDate: "Date d'échéance",
+    selectStartDate: "Sélectionner la date de début...",
+    selectDueDate: "Sélectionner la date d'échéance...",
+    status: "Statut",
+    selectStatus: "Sélectionner un statut...",
+    allLabelsSelected: "Tous les labels sont sélectionnés",
+
+    // Placeholders
+    issueTitlePlaceholder: "Titre de l'issue...",
+    issueDescriptionPlaceholder: "Description de l'issue (Markdown supporté)...",
 
     // States
     todo: "À faire",
@@ -322,5 +454,47 @@ export const translations: Record<Language, Translations> = {
     language: "Langue",
     english: "Anglais",
     french: "Français",
+
+    // Configuration - nouvelles clés
+    selfHostedGitlabInstance: "Pour les instances GitLab auto-hébergées (ex: https://gitlab.intech.dev)",
+    tokenInstructions1: "1. Allez dans GitLab → Préférences → Tokens d'accès",
+    tokenInstructions2: "2. Créez un nouveau token avec les scopes :",
+    tokenInstructions3: "3. Copiez la valeur complète (commence par",
+
+    // Labels
+    newLabelPlaceholder: "Nom du nouveau label...",
+    addLabel: "Ajouter un label...",
+    createNewLabel: "Créer",
+
+    // Delete confirmation
+    deleteIssue: "Supprimer l'issue",
+    deleteIssueConfirmation: "Êtes-vous sûr de vouloir supprimer cette issue ?",
+    deleteIssueWarning: "Cette action ne peut pas être annulée. L'issue sera définitivement supprimée de GitLab.",
+    deleting: "Suppression...",
+
+    // Due date labels
+    overdueDays: "en retard de",
+    overdueDay: "en retard de",
+    dueToday: "Échéance aujourd'hui",
+    dueTomorrow: "Échéance demain",
+    dueInDays: "dans",
+    day: "jour",
+    days: "jours",
+
+    // Success/Error messages
+    success: "Succès",
+    ticketMoved: "Ticket déplacé",
+    movedTo: "déplacé vers",
+    unknownError: "Erreur inconnue",
+    cannotMoveTicket: "Impossible de déplacer le ticket",
+    issue: "Issue",
+    issueCreated: "Issue créée",
+    createdSuccessfully: "créée avec succès",
+    issueUpdated: "Issue mise à jour",
+    updatedSuccessfully: "mise à jour avec succès",
+    operationError: "Erreur lors de l'opération",
+    issueDeleted: "Issue supprimée",
+    deletedSuccessfully: "supprimée avec succès",
+    deletionError: "Erreur lors de la suppression",
   },
 }

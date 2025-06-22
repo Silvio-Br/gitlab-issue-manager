@@ -6,8 +6,9 @@ export interface GitLabIssue {
   state: "opened" | "closed"
   created_at: string
   updated_at: string
-  user_notes_count: number;
+  user_notes_count: number
   due_date: string | null
+  start_date?: string | null // Ajouté pour la start date extraite des commentaires
   labels: string[]
   assignees: GitLabUser[]
   author: GitLabUser
