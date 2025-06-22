@@ -148,6 +148,22 @@ export interface Translations {
   dueInDays: string
   day: string
   days: string
+
+  // Success/Error messages
+  success: string
+  ticketMoved: string
+  movedTo: string
+  unknownError: string
+  cannotMoveTicket: string
+  issue: string
+  issueCreated: string
+  createdSuccessfully: string
+  issueUpdated: string
+  updatedSuccessfully: string
+  operationError: string
+  issueDeleted: string
+  deletedSuccessfully: string
+  deletionError: string
 }
 
 export const translations: Record<Language, Translations> = {
@@ -299,6 +315,22 @@ export const translations: Record<Language, Translations> = {
     dueInDays: "in",
     day: "day",
     days: "days",
+
+    // Success/Error messages
+    success: "Success",
+    ticketMoved: "Ticket moved",
+    movedTo: "moved to",
+    unknownError: "Unknown error",
+    cannotMoveTicket: "Cannot move ticket",
+    issue: "Issue",
+    issueCreated: "Issue created",
+    createdSuccessfully: "created successfully",
+    issueUpdated: "Issue updated",
+    updatedSuccessfully: "updated successfully",
+    operationError: "Error during operation",
+    issueDeleted: "Issue deleted",
+    deletedSuccessfully: "deleted successfully",
+    deletionError: "Error during deletion",
   },
   fr: {
     // Common
@@ -448,5 +480,21 @@ export const translations: Record<Language, Translations> = {
     dueInDays: "dans",
     day: "jour",
     days: "jours",
+
+    // Success/Error messages
+    success: "Succès",
+    ticketMoved: "Ticket déplacé",
+    movedTo: "déplacé vers",
+    unknownError: "Erreur inconnue",
+    cannotMoveTicket: "Impossible de déplacer le ticket",
+    issue: "Issue",
+    issueCreated: "Issue créée",
+    createdSuccessfully: "créée avec succès",
+    issueUpdated: "Issue mise à jour",
+    updatedSuccessfully: "mise à jour avec succès",
+    operationError: "Erreur lors de l'opération",
+    issueDeleted: "Issue supprimée",
+    deletedSuccessfully: "supprimée avec succès",
+    deletionError: "Erreur lors de la suppression",
   },
 }

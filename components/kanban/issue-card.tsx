@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Calendar, Flag, MoreHorizontal, Edit, ExternalLink, Trash2 } from "lucide-react"
+import { MoreHorizontal, ExternalLink, Edit, Trash2, Calendar, Flag } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -49,7 +49,7 @@ export function IssueCard({ issue, columns, isPending, onIssueClick, onEditClick
     return column?.color || "#6b7280"
   }
 
-  // Filter out status labels from display
+  // Get display labels (non-status labels)
   const getDisplayLabels = (issueLabels: string[]) => {
     const columnLabels = kanbanConfig.columns.flatMap((col) => col.labels)
     return issueLabels.filter(
@@ -71,7 +71,7 @@ export function IssueCard({ issue, columns, isPending, onIssueClick, onEditClick
           isPending ? "opacity-70 animate-pulse" : ""
         }`}
         onClick={(e) => {
-          // Prevent modal opening when clicking on dropdown
+          // Don't open modal if clicking on dropdown menu
           if (!(e.target as Element).closest("[data-dropdown-trigger]")) {
             onIssueClick(issue)
           }

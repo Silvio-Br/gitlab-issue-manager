@@ -20,7 +20,7 @@ import { CollapsibleComments } from "./collapsible-comments"
 
 interface IssueDetailModalProps {
   issue: GitLabIssue | null
-  columns: Array<{ id: string; name: string }>
+  columns: Array<{ id: string; name: string; color: string }>
   onClose: () => void
   onEdit: () => void
   customLinkComponent: React.ComponentType<any>
@@ -35,11 +35,11 @@ export function IssueDetailModal({
                                    customLinkComponent: CustomLink,
                                    customImageComponent: CustomImage,
                                  }: IssueDetailModalProps) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
 
   if (!issue) return null
 
-  // Filter out status labels from display
+  // Get display labels (non-status labels)
   const getDisplayLabels = (issueLabels: string[]) => {
     const columnLabels = kanbanConfig.columns.flatMap((col) => col.labels)
     return issueLabels.filter(
@@ -68,7 +68,7 @@ export function IssueDetailModal({
 
         <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
           <div className="space-y-6 pr-2">
-            {/* Issue Information */}
+            {/* Issue Info */}
             <div className="space-y-4">
               <div className="flex items-center gap-4 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
@@ -100,7 +100,7 @@ export function IssueDetailModal({
                 )}
               </div>
 
-              {/* Dates Section */}
+              {/* Dates - Separate line */}
               {(issue.start_date || issue.due_date) && (
                 <div className="flex items-center gap-4 text-sm">
                   {issue.start_date && (
@@ -129,7 +129,7 @@ export function IssueDetailModal({
                 </div>
               )}
 
-              {/* Assignees Section */}
+              {/* Assignees */}
               {issue.assignees.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">{t.assignedTo_}</h4>
@@ -154,7 +154,7 @@ export function IssueDetailModal({
               )}
             </div>
 
-            {/* Description Section */}
+            {/* Description */}
             {issue.description && (
               <>
                 <Separator />
@@ -173,10 +173,10 @@ export function IssueDetailModal({
 
             <Separator />
 
-            {/* Comments Section */}
-            <CollapsibleComments issue={issue} customLinkComponent={CustomLink} customImageComponent={CustomImage} />
+            {/* Comments */}
+            <CollapsibleComments issue={issue} />
 
-            {/* Action Buttons */}
+            {/* Actions */}
             <div className="flex gap-2 pt-4">
               <Button onClick={onEdit}>
                 <Edit className="w-4 h-4 mr-2" />

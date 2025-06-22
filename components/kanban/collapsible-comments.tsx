@@ -1,9 +1,7 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useMemo } from "react"
-import { MessageSquare, Loader2, ChevronRight } from "lucide-react"
+import { MessageSquare, ChevronRight, Loader2 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 
 import { Button } from "@/components/ui/button"
@@ -13,7 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 import type { GitLabIssue } from "@/types/gitlab"
 import { useLanguage } from "@/contexts/language-context"
-import { useGitLabApi } from "@/hooks/use-gitlab-api"
+import { useGitLabAPI } from "@/hooks/use-gitlab-api"
 
 interface GitLabComment {
   id: number
@@ -31,29 +29,24 @@ interface GitLabComment {
 
 interface CollapsibleCommentsProps {
   issue: GitLabIssue
-  customLinkComponent: React.ComponentType<any>
-  customImageComponent: React.ComponentType<any>
 }
 
-export function CollapsibleComments({
-                                      issue,
-                                      customLinkComponent: CustomLink,
-                                      customImageComponent: CustomImage,
-                                    }: CollapsibleCommentsProps) {
+export function CollapsibleComments({ issue }: CollapsibleCommentsProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [comments, setComments] = useState<GitLabComment[]>([])
   const [loading, setLoading] = useState(false)
   const [hasLoaded, setHasLoaded] = useState(false)
   const { t } = useLanguage()
-  const { gitlabApi, projectId } = useGitLabApi()
+  const { gitlabApi, projectId, CustomLink, CustomImage } = useGitLabAPI()
 
   const loadComments = async () => {
-    if (hasLoaded || !gitlabApi || !projectId) return
+    if (hasLoaded) return
 
     try {
       setLoading(true)
+      // @ts-ignore
       const commentsData = await gitlabApi.getIssueComments(projectId, issue.iid)
-      // Filter out system comments and start date comments
+      // Filter system comments and start date comments
       const filteredComments = commentsData.filter(
         (comment) => !comment.system && !comment.body.match(/\*\*Start Date:\*\*/),
       )
@@ -67,7 +60,7 @@ export function CollapsibleComments({
     }
   }
 
-  // Calculate visible comments count (excluding start date comments)
+  // Calculate visible comments count (without start date comments)
   const visibleCommentsCount = useMemo(() => {
     if (!hasLoaded) {
       // Estimation based on total count minus potential start date comments

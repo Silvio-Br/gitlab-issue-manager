@@ -11,15 +11,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-import type { GitLabIssue, KanbanColumnConfig } from "@/types/gitlab"
+import type { GitLabIssue } from "@/types/gitlab"
+import type { KanbanColumnConfig } from "@/config/kanban-config"
 import { useLanguage } from "@/contexts/language-context"
 
 interface IssueForm {
@@ -90,7 +91,7 @@ export function IssueModal({
         <ScrollArea className="flex-1 overflow-y-auto">
           <div className="px-1">
             <div className="space-y-6 pr-3 pb-4">
-              {/* Title Field */}
+              {/* Title */}
               <div className="space-y-2">
                 <Label htmlFor="title">{t.issueTitle_}</Label>
                 <Input
@@ -102,7 +103,7 @@ export function IssueModal({
                 />
               </div>
 
-              {/* Description Field */}
+              {/* Description */}
               <div className="space-y-2">
                 <Label htmlFor="description">{t.issueDescription_}</Label>
                 <Textarea
@@ -114,7 +115,7 @@ export function IssueModal({
                 />
               </div>
 
-              {/* Status Selection */}
+              {/* Status (Column) */}
               <div className="space-y-2">
                 <Label>{t.status}</Label>
                 <Select
@@ -153,7 +154,7 @@ export function IssueModal({
                 </Select>
               </div>
 
-              {/* Date Fields */}
+              {/* Dates */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Start Date */}
                 <div className="space-y-2">
@@ -206,12 +207,12 @@ export function IssueModal({
                 </div>
               </div>
 
-              {/* Labels Section */}
+              {/* Other Labels */}
               {(allNonStatusLabels.length > 0 || showCustomLabelInput) && (
                 <div className="space-y-2">
                   <Label>{t.labels}</Label>
 
-                  {/* Selected Labels */}
+                  {/* Selected labels */}
                   {form.labels.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-2">
                       {form.labels.map((label) => (
@@ -236,7 +237,7 @@ export function IssueModal({
                     </div>
                   )}
 
-                  {/* Custom Label Input */}
+                  {/* Custom label input */}
                   {showCustomLabelInput && (
                     <div className="flex gap-2 mb-2 items-center">
                       <Input
@@ -292,7 +293,6 @@ export function IssueModal({
                     </div>
                   )}
 
-                  {/* Label Selection */}
                   <div className="flex gap-2 items-center">
                     <Select
                       value=""
@@ -336,7 +336,7 @@ export function IssueModal({
                 </div>
               )}
 
-              {/* Assignee Selection */}
+              {/* Assignee */}
               {allAssigneesWithIds.length > 0 && (
                 <div className="space-y-2">
                   <Label>{t.assignedTo_}</Label>
@@ -402,7 +402,7 @@ export function IssueModal({
           </div>
         </ScrollArea>
 
-        {/* Modal Actions */}
+        {/* Actions at bottom, always visible */}
         <div className="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
           <Button type="button" variant="outline" onClick={onClose}>
             {t.cancel}

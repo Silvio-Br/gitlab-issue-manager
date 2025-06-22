@@ -1,10 +1,11 @@
 "use client"
 
-import { Loader2, Trash2 } from "lucide-react"
+import { Trash2, Loader2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { AlertDialog, AlertDialogContent } from "@/components/ui/alert-dialog"
 import {
+  AlertDialog,
+  AlertDialogContent,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogDescription,

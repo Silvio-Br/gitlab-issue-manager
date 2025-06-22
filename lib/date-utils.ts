@@ -1,5 +1,6 @@
-// Utility functions for date handling and formatting
+import type { Translations } from "@/lib/i18n"
 
+// Utility function to get due date color based on urgency
 export const getDueDateColor = (dueDate: string) => {
   const today = new Date()
   const due = new Date(dueDate)
@@ -49,7 +50,8 @@ export const getDueDateColor = (dueDate: string) => {
   }
 }
 
-export const getDueDateLabel = (dueDate: string, t: any) => {
+// Utility function to get due date label with i18n
+export const getDueDateLabel = (dueDate: string, t: Translations) => {
   const today = new Date()
   const due = new Date(dueDate)
   const diffTime = due.getTime() - today.getTime()
