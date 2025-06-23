@@ -172,15 +172,6 @@ export default function GitLabKanbanBoard({
     [gitlabUrl, projectId],
   )
 
-  // Initialize column limits
-  useEffect(() => {
-    const initialLimits: Record<string, number> = {}
-    getSortedColumns(kanbanConfig).forEach((column) => {
-      initialLimits[column.id] = TICKETS_PER_COLUMN
-    })
-    setColumnLimits(initialLimits)
-  }, [])
-
   // Load project data
   useEffect(() => {
     const loadProjectData = async () => {
@@ -217,10 +208,50 @@ export default function GitLabKanbanBoard({
       }
     }
 
-    if (projectId) {
+    // Only load data if we don't have it yet or if projectId changed
+    if (projectId && (!project || project.id.toString() !== projectId)) {
       loadProjectData()
+    } else if (onRefreshReady && project) {
+      // Just provide refresh function if data already exists
+      onRefreshReady(loadProjectData)
     }
-  }, [projectId, gitlabApi, t.error, onRefreshReady])
+  }, [projectId, gitlabApi]) // Removed t.error and onRefreshReady from dependencies
+
+  // Separate effect for onRefreshReady to avoid unnecessary re-renders
+  useEffect(() => {
+    if (onRefreshReady && project) {
+      const loadProjectData = async () => {
+        try {
+          setLoading(true)
+          setError(null)
+
+          const [projectData, issuesData] = await Promise.all([
+            gitlabApi.getProject(projectId),
+            gitlabApi.getIssues(projectId, { state: "all", per_page: 100 }),
+          ])
+
+          setProject(projectData)
+          // @ts-expect-error - API response type mismatch
+          setIssues(issuesData)
+
+          const configColumns = getSortedColumns(kanbanConfig).map((columnConfig) => ({
+            id: columnConfig.id,
+            name: columnConfig.name,
+            emoji: columnConfig.emoji,
+            color: columnConfig.color,
+          }))
+
+          setColumns(configColumns)
+        } catch (err) {
+          setError(err instanceof Error ? err.message : t.error)
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      onRefreshReady(loadProjectData)
+    }
+  }, [onRefreshReady])
 
   // Get all status labels (from columns)
   const statusLabels = useMemo(() => {
@@ -579,16 +610,16 @@ export default function GitLabKanbanBoard({
             prev.map((issue) =>
               issue.id === editingIssue.id
                 ? {
-                    ...issue,
-                    title: issueForm.title,
-                    description: issueForm.description,
-                    labels: finalLabels,
-                    assignees: issueForm.assignee_id
-                      ? allAssigneesWithIds.filter((a) => a.id === issueForm.assignee_id)
-                      : [],
-                    due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : null,
-                    start_date: newStartDate,
-                  }
+                  ...issue,
+                  title: issueForm.title,
+                  description: issueForm.description,
+                  labels: finalLabels,
+                  assignees: issueForm.assignee_id
+                    ? allAssigneesWithIds.filter((a) => a.id === issueForm.assignee_id)
+                    : [],
+                  due_date: issueForm.due_date ? format(issueForm.due_date, "yyyy-MM-dd") : null,
+                  start_date: newStartDate,
+                }
                 : issue,
             ),
           )
