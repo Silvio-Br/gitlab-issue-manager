@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { MessageSquare, ChevronRight, Loader2 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 
@@ -29,51 +29,83 @@ interface GitLabComment {
 
 interface CollapsibleCommentsProps {
   issue: GitLabIssue
+  isVisible?: boolean // New prop to control when the component should be active
 }
 
-export function CollapsibleComments({ issue }: CollapsibleCommentsProps) {
+export function CollapsibleComments({ issue, isVisible = true }: CollapsibleCommentsProps) {
+  const { gitlabApi, projectId, CustomLink, CustomImage } = useGitLabAPI()
+  const { t } = useLanguage()
+
   const [isOpen, setIsOpen] = useState(false)
   const [comments, setComments] = useState<GitLabComment[]>([])
   const [loading, setLoading] = useState(false)
   const [hasLoaded, setHasLoaded] = useState(false)
-  const { t } = useLanguage()
-  const { gitlabApi, projectId, CustomLink, CustomImage } = useGitLabAPI()
+
+  // Use the issue's user_notes_count as initial count
+  const [visibleCommentsCount, setVisibleCommentsCount] = useState(issue.user_notes_count || 0)
+
+  // Reset state when issue changes or component becomes invisible
+  useEffect(() => {
+    if (!isVisible) {
+      setIsOpen(false)
+      setComments([])
+      setLoading(false)
+      setHasLoaded(false)
+      setVisibleCommentsCount(issue.user_notes_count || 0)
+    }
+  }, [issue.id, isVisible])
 
   const loadComments = async () => {
-    if (hasLoaded) return
+    // Don't load if component is not visible (modal not open)
+    if (!isVisible) return
+
+    // Only load if not already loaded and API is ready
+    if (hasLoaded || loading) return
+
+    // Check if API is ready before making the call
+    if (!gitlabApi || !projectId) {
+      console.warn("GitLab API or projectId not ready yet")
+      return
+    }
 
     try {
       setLoading(true)
+      console.log(`Loading comments for issue #${issue.iid}`) // Debug log
+
       // @ts-ignore
       const commentsData = await gitlabApi.getIssueComments(projectId, issue.iid)
+
       // Filter system comments and start date comments
       const filteredComments = commentsData.filter(
         (comment) => !comment.system && !comment.body.match(/\*\*Start Date:\*\*/),
       )
+
       setComments(filteredComments)
+      setVisibleCommentsCount(filteredComments.length)
       setHasLoaded(true)
     } catch (err) {
       console.error("Error loading comments:", err)
       setComments([])
+      setVisibleCommentsCount(0)
     } finally {
       setLoading(false)
     }
   }
 
-  // Calculate visible comments count (without start date comments)
-  const visibleCommentsCount = useMemo(() => {
-    if (!hasLoaded) {
-      // Estimation based on total count minus potential start date comments
-      return issue.user_notes_count || 0
-    }
-    return comments.length
-  }, [hasLoaded, comments.length, issue.user_notes_count])
-
   const handleToggle = () => {
-    if (!isOpen && !hasLoaded) {
+    // Don't allow toggle if component is not visible
+    if (!isVisible) return
+
+    // Only load comments when user explicitly opens the section AND component is visible
+    if (!isOpen && !hasLoaded && !loading && isVisible) {
       loadComments()
     }
     setIsOpen(!isOpen)
+  }
+
+  // Don't render anything if not visible (optional - for performance)
+  if (!isVisible) {
+    return null
   }
 
   return (
@@ -81,7 +113,7 @@ export function CollapsibleComments({ issue }: CollapsibleCommentsProps) {
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
-          className="w-full justify-between p-0 h-auto font-medium text-sm"
+          className="w-full justify-between p-0 h-auto font-medium text-sm hover:bg-gray-50"
           onClick={handleToggle}
         >
           <div className="flex items-center gap-2">
@@ -109,7 +141,7 @@ export function CollapsibleComments({ issue }: CollapsibleCommentsProps) {
               </div>
             ))}
           </div>
-        ) : comments.length > 0 ? (
+        ) : hasLoaded && comments.length > 0 ? (
           <div className="space-y-4">
             {comments.map((comment) => (
               <div key={comment.id} className="border rounded-lg p-4 animate-in slide-in-from-top-2 duration-200">
@@ -142,9 +174,9 @@ export function CollapsibleComments({ issue }: CollapsibleCommentsProps) {
               </div>
             ))}
           </div>
-        ) : (
+        ) : hasLoaded && comments.length === 0 ? (
           <p className="text-sm text-gray-500 py-4">{t.noComments}</p>
-        )}
+        ) : null}
       </CollapsibleContent>
     </Collapsible>
   )

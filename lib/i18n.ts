@@ -15,11 +15,16 @@ export interface Translations {
   loadMore: string
   remaining: string
 
+  // Refresh
+  dataRefreshed: string
+  refreshError: string
+
   // Navigation
   dashboard: string
   projects: string
   configuration: string
   reconfiguration: string
+  refresh: string
 
   // Project management
   projectManagement: string
@@ -164,6 +169,16 @@ export interface Translations {
   issueDeleted: string
   deletedSuccessfully: string
   deletionError: string
+  errorUpdatingIssue: string
+
+  // Gantt specific
+  timeline: string
+  tasks: string
+  duration: string
+  withDates: string
+  noIssuesWithDates: string
+  noIssuesWithDatesDescription: string
+  to: string
 }
 
 export const translations: Record<Language, Translations> = {
@@ -187,6 +202,7 @@ export const translations: Record<Language, Translations> = {
     projects: "Projects",
     configuration: "Configuration",
     reconfiguration: "Reconfiguration",
+    refresh: "Refresh",
 
     // Project management
     projectManagement: "Project Management",
@@ -330,7 +346,19 @@ export const translations: Record<Language, Translations> = {
     operationError: "Error during operation",
     issueDeleted: "Issue deleted",
     deletedSuccessfully: "deleted successfully",
+    errorUpdatingIssue: "Error updating the ticket",
+
+    // Gantt specific
     deletionError: "Error during deletion",
+    timeline: "Timeline",
+    tasks: "Tasks",
+    duration: "Duration",
+    withDates: "with start and due dates",
+    noIssuesWithDates: "No Issues with Dates",
+    noIssuesWithDatesDescription: "Only issues with both start date and due date are displayed in the Gantt view. Add dates to your issues to see them here.",
+    to: "to",
+    dataRefreshed: "Data refreshed successfully",
+    refreshError: "Failed to refresh data"
   },
   fr: {
     // Common
@@ -352,6 +380,7 @@ export const translations: Record<Language, Translations> = {
     projects: "Projets",
     configuration: "Configuration",
     reconfiguration: "Reconfiguration",
+    refresh: "Recharger",
 
     // Project management
     projectManagement: "Gestion de projets",
@@ -496,5 +525,17 @@ export const translations: Record<Language, Translations> = {
     issueDeleted: "Issue supprimée",
     deletedSuccessfully: "supprimée avec succès",
     deletionError: "Erreur lors de la suppression",
+    errorUpdatingIssue: "Erreur lors de la mise à jour du ticket",
+
+    // Gantt specific
+    timeline: "Chronologie",
+    tasks: "Tâches",
+    duration: "Durée",
+    withDates: "avec dates de début et de fin",
+    noIssuesWithDates: "Aucune Issue avec Dates",
+    noIssuesWithDatesDescription: "Seules les issues avec une date de début et une date de fin sont affichées dans la vue Gantt. Ajoutez des dates à vos issues pour les voir ici.",
+    to: "à",
+    dataRefreshed: "Données rechargées avec succès",
+    refreshError: "Error lors du rechargement des données"
   },
 }

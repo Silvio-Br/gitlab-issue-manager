@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useMemo, useEffect, useCallback } from "react"
-import { Plus, Search, Filter, AlertCircle } from "lucide-react"
+import { Plus, Search, Filter, AlertCircle, GitlabIcon } from "lucide-react"
 import { DndContext, closestCorners, DragOverlay } from "@dnd-kit/core"
 import { type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { format } from "date-fns"
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,7 @@ interface GitLabKanbanBoardProps {
   projectId: string
   gitlabToken?: string
   gitlabUrl?: string
+  onRefreshReady?: (refreshFn: () => Promise<void>) => void
 }
 
 interface IssueForm {
@@ -64,7 +66,12 @@ interface KanbanColumnData {
 
 const TICKETS_PER_COLUMN = 10
 
-export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }: GitLabKanbanBoardProps) {
+export default function GitLabKanbanBoard({
+                                            projectId,
+                                            gitlabToken,
+                                            gitlabUrl,
+                                            onRefreshReady,
+                                          }: GitLabKanbanBoardProps) {
   // State management
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
@@ -165,15 +172,6 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
     [gitlabUrl, projectId],
   )
 
-  // Initialize column limits
-  useEffect(() => {
-    const initialLimits: Record<string, number> = {}
-    getSortedColumns(kanbanConfig).forEach((column) => {
-      initialLimits[column.id] = TICKETS_PER_COLUMN
-    })
-    setColumnLimits(initialLimits)
-  }, [])
-
   // Load project data
   useEffect(() => {
     const loadProjectData = async () => {
@@ -198,6 +196,11 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
         }))
 
         setColumns(configColumns)
+
+        // Provide refresh function to parent
+        if (onRefreshReady) {
+          onRefreshReady(loadProjectData)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : t.error)
       } finally {
@@ -205,10 +208,50 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
       }
     }
 
-    if (projectId) {
+    // Only load data if we don't have it yet or if projectId changed
+    if (projectId && (!project || project.id.toString() !== projectId)) {
       loadProjectData()
+    } else if (onRefreshReady && project) {
+      // Just provide refresh function if data already exists
+      onRefreshReady(loadProjectData)
     }
-  }, [projectId, gitlabApi, t.error])
+  }, [projectId, gitlabApi]) // Removed t.error and onRefreshReady from dependencies
+
+  // Separate effect for onRefreshReady to avoid unnecessary re-renders
+  useEffect(() => {
+    if (onRefreshReady && project) {
+      const loadProjectData = async () => {
+        try {
+          setLoading(true)
+          setError(null)
+
+          const [projectData, issuesData] = await Promise.all([
+            gitlabApi.getProject(projectId),
+            gitlabApi.getIssues(projectId, { state: "all", per_page: 100 }),
+          ])
+
+          setProject(projectData)
+          // @ts-expect-error - API response type mismatch
+          setIssues(issuesData)
+
+          const configColumns = getSortedColumns(kanbanConfig).map((columnConfig) => ({
+            id: columnConfig.id,
+            name: columnConfig.name,
+            emoji: columnConfig.emoji,
+            color: columnConfig.color,
+          }))
+
+          setColumns(configColumns)
+        } catch (err) {
+          setError(err instanceof Error ? err.message : t.error)
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      onRefreshReady(loadProjectData)
+    }
+  }, [onRefreshReady])
 
   // Get all status labels (from columns)
   const statusLabels = useMemo(() => {
@@ -702,7 +745,15 @@ export default function GitLabKanbanBoard({ projectId, gitlabToken, gitlabUrl }:
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
+                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                  <Avatar className="w-8 h-8 rounded-lg">
+                    <AvatarImage src={project?.avatar_url || "/placeholder.svg"} alt={project?.name} />
+                    <AvatarFallback className="rounded-lg">
+                      <GitlabIcon className="w-5 h-5 text-orange-500" />
+                    </AvatarFallback>
+                  </Avatar>
+                  {project?.name}
+                </h1>
                 <p className="text-gray-600 mt-1">{project?.description}</p>
               </div>
               <Button onClick={handleNewIssueClick}>

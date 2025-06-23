@@ -17,20 +17,27 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 import type { GitLabIssue } from "@/types/gitlab"
-import { kanbanConfig, getIssueColumn } from "@/config/kanban-config"
+import { kanbanConfig, getIssueColumn, getSortedColumns } from "@/config/kanban-config"
 import { useLanguage } from "@/contexts/language-context"
 import { getDueDateColor } from "@/lib/date-utils"
 
 interface IssueCardProps {
   issue: GitLabIssue
-  columns: Array<{ id: string; color: string }>
+  columns?: Array<{ id: string; color: string }>
   isPending: boolean
   onIssueClick: (issue: GitLabIssue) => void
   onEditClick: (issue: GitLabIssue) => void
   onDeleteClick: (issue: GitLabIssue) => void
 }
 
-export function IssueCard({ issue, columns, isPending, onIssueClick, onEditClick, onDeleteClick }: IssueCardProps) {
+export function IssueCard({
+  issue,
+  columns = getSortedColumns(kanbanConfig), // safe default
+  isPending,
+  onIssueClick,
+  onEditClick,
+  onDeleteClick,
+}: IssueCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: issue.id.toString(),
   })
@@ -44,6 +51,8 @@ export function IssueCard({ issue, columns, isPending, onIssueClick, onEditClick
 
   // Get column color for the issue
   const getColumnColor = () => {
+    // Guard against undefined or empty arrays
+    if (!columns?.length) return "#6b7280"
     const issueColumnId = getIssueColumn(issue, kanbanConfig)
     const column = columns.find((col) => col.id === issueColumnId)
     return column?.color || "#6b7280"
